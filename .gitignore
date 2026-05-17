@@ -1,0 +1,23 @@
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+target/
+output/
+
+# Dependencies
+node_modules/
+
+# IDE and local runtime files
+.idea/
+*.iml
+*.log
+
+# Local backups of nested Git metadata
+.git.local-backup/
+
+# Environment overrides
+.env
+.env.local
+.env.*.local
