@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { getStoredUser, getToken, removeStoredUser, removeToken, setStoredUser, setToken } from '../utils/token'
-import { getCurrentUser, login as loginApi, logout as logoutApi } from '../api/auth'
+import { changePassword as changePasswordApi, getCurrentUser, login as loginApi, logout as logoutApi, register as registerApi } from '../api/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -13,6 +13,14 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async login(payload) {
       const data = await loginApi(payload)
+      this.token = data.token
+      this.user = data.user
+      setToken(data.token)
+      setStoredUser(data.user)
+      return data
+    },
+    async register(payload) {
+      const data = await registerApi(payload)
       this.token = data.token
       this.user = data.user
       setToken(data.token)
@@ -34,6 +42,13 @@ export const useAuthStore = defineStore('auth', {
         removeToken()
         removeStoredUser()
       }
+    },
+    async changePassword(payload) {
+      await changePasswordApi(payload)
+      this.token = null
+      this.user = null
+      removeToken()
+      removeStoredUser()
     }
   }
 })

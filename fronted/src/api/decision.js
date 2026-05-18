@@ -5,6 +5,10 @@ export function getDecisionDashboard() {
   return request.get(API_PATHS.decisionDashboard)
 }
 
+export function searchDecisions(params) {
+  return request.get(API_PATHS.decisions, { params })
+}
+
 export function createDecision(data) {
   return request.post(API_PATHS.decisions, data)
 }

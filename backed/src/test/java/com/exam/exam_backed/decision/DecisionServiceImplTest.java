@@ -112,6 +112,33 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void searchFiltersByKeywordTagStatusAndCurrentUser() {
+        LocalDateTime now = LocalDateTime.now();
+        Decision matched = new Decision(1L, 7L, "Weekend Course", "ctx", "a,b", "reason", "study,life", "calm", 2,
+                now.plusDays(1), null, null, "pending", now.minusMinutes(1), now.minusMinutes(1));
+        decisionMapper.seed(matched);
+        decisionMapper.seed(new Decision(2L, 7L, "Weekend Course Reviewed", "ctx", "a,b", "reason", "study", "calm", 2,
+                now.minusDays(1), "ok", "done", "reviewed", now.minusMinutes(2), now.minusMinutes(2)));
+        decisionMapper.seed(new Decision(3L, 7L, "Other Plan", "ctx", "a,b", "reason", "study", "calm", 2,
+                now.plusDays(1), null, null, "pending", now.minusMinutes(3), now.minusMinutes(3)));
+        decisionMapper.seed(new Decision(4L, 8L, "Weekend Course", "ctx", "a,b", "reason", "study", "calm", 2,
+                now.plusDays(1), null, null, "pending", now.minusMinutes(4), now.minusMinutes(4)));
+
+        List<Decision> results = decisionService.search(7L, " Course ", " study ", "pending", 50);
+
+        assertEquals(List.of(matched), results);
+    }
+
+    @Test
+    void searchRejectsInvalidStatus() {
+        BusinessException error = assertThrows(BusinessException.class, () ->
+                decisionService.search(7L, null, null, "deleted", 50)
+        );
+
+        assertEquals("决策状态筛选值不正确", error.getMessage());
+    }
+
+    @Test
     void createDecisionReturnsInsertedRecordByGeneratedId() {
         DecisionCreateRequest request = new DecisionCreateRequest(
                 "是否买运动手环",
@@ -203,6 +230,17 @@ class DecisionServiceImplTest {
         public List<Decision> findRecentByUserId(Long userId, int limit) {
             return decisions.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public List<Decision> searchByUserId(Long userId, String keyword, String tag, String status, int limit) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> keyword == null || decision.title().contains(keyword))
+                    .filter(decision -> tag == null || (decision.tags() != null && decision.tags().contains(tag)))
+                    .filter(decision -> status == null || status.equals(decision.status()))
                     .limit(limit)
                     .toList();
         }

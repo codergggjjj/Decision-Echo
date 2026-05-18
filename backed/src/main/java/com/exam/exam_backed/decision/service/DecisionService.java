@@ -13,6 +13,8 @@ public interface DecisionService {
 
     List<Decision> recent(Long userId, int limit);
 
+    List<Decision> search(Long userId, String keyword, String tag, String status, int limit);
+
     DecisionDashboard dashboard(Long userId);
 
     DecisionSummary summary(Long userId);

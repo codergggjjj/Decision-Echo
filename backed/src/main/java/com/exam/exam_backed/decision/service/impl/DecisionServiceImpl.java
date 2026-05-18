@@ -59,6 +59,18 @@ public class DecisionServiceImpl implements DecisionService {
     }
 
     @Override
+    public List<Decision> search(Long userId, String keyword, String tag, String status, int limit) {
+        int normalizedLimit = Math.min(Math.max(limit, 1), 100);
+        return decisionMapper.searchByUserId(
+                userId,
+                normalizeText(keyword),
+                normalizeText(tag),
+                normalizeStatus(status),
+                normalizedLimit
+        );
+    }
+
+    @Override
     public DecisionDashboard dashboard(Long userId) {
         List<Decision> recent = recent(userId, 20);
         List<Decision> pendingReview = decisionMapper.findDuePendingReviewByUserId(userId, 5);
@@ -77,6 +89,25 @@ public class DecisionServiceImpl implements DecisionService {
                 decisionMapper.countByUserIdAndStatus(userId, STATUS_REVIEWED),
                 satisfaction
         );
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeStatus(String status) {
+        String value = normalizeText(status);
+        if (value == null) {
+            return null;
+        }
+        if (STATUS_PENDING.equals(value) || STATUS_REVIEWED.equals(value)) {
+            return value;
+        }
+        throw new BusinessException(ErrorCode.PARAM_ERROR, "决策状态筛选值不正确");
     }
 
     @Override

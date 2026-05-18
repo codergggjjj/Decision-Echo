@@ -7,6 +7,7 @@
       </div>
       <div class="memory-actions">
         <button type="button" class="soft-icon-button" @click="loadDashboard">刷新</button>
+        <button type="button" class="soft-icon-button" @click="openPasswordDialog">修改密码</button>
         <button type="button" class="soft-icon-button" @click="handleLogout">退出</button>
       </div>
     </header>
@@ -27,9 +28,46 @@
           </div>
         </div>
 
+        <section class="decision-search-panel">
+          <div class="decision-search-main">
+            <label class="decision-search-field">
+              <span>决策名</span>
+              <el-input
+                v-model.trim="searchForm.keyword"
+                clearable
+                placeholder="搜决策名，比如 周末课程"
+                @keyup.enter="executeDecisionSearch"
+              />
+            </label>
+            <label class="decision-search-field compact">
+              <span>标签</span>
+              <el-select v-model="searchForm.tag" clearable placeholder="全部标签">
+                <el-option v-for="item in tagOptions" :key="item" :label="item" :value="item" />
+              </el-select>
+            </label>
+          </div>
+          <div class="decision-search-actions">
+            <div class="decision-status-filter" aria-label="决策状态筛选">
+              <button
+                v-for="item in statusFilterOptions"
+                :key="item.value"
+                type="button"
+                :class="{ active: searchForm.status === item.value }"
+                @click="searchForm.status = item.value"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+            <div class="decision-search-buttons">
+              <el-button :loading="isSearching" class="primary-action search-submit" type="primary" @click="executeDecisionSearch">查询</el-button>
+              <el-button :disabled="(!hasSearchFilters && !isSearchMode) || isSearching" @click="resetDecisionSearch">清空</el-button>
+            </div>
+          </div>
+        </section>
+
         <div v-if="recentDecisions.length === 0" class="empty-state youth-empty">
-          <strong>还没有决策记录</strong>
-          <p>从一个小选择开始，比如要不要买某样东西、报名某个课程。</p>
+          <strong>{{ isSearchMode ? '没有找到匹配的决策' : '还没有决策记录' }}</strong>
+          <p>{{ isSearchMode ? '换个关键词、标签或状态再试试。' : '从一个小选择开始，比如要不要买某样东西、报名某个课程。' }}</p>
         </div>
 
         <div v-else class="memory-feed">
@@ -264,6 +302,50 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="passwordDialogVisible" class="youth-dialog password-dialog" title="修改密码" width="520px">
+      <el-form ref="passwordFormRef" class="password-form" :model="passwordForm" :rules="passwordRules" label-position="top">
+        <section class="password-card">
+          <div class="password-card-title">
+            <span>账号安全</span>
+            <p>修改成功后会退出登录，请使用新密码重新进入。</p>
+          </div>
+          <el-form-item label="旧密码" prop="oldPassword">
+            <el-input
+              v-model="passwordForm.oldPassword"
+              autocomplete="current-password"
+              placeholder="请输入当前密码"
+              show-password
+              type="password"
+            />
+          </el-form-item>
+          <el-form-item label="新密码" prop="newPassword">
+            <el-input
+              v-model="passwordForm.newPassword"
+              autocomplete="new-password"
+              placeholder="8-32 位，至少包含字母和数字"
+              show-password
+              type="password"
+            />
+          </el-form-item>
+          <el-form-item label="确认新密码" prop="confirmPassword">
+            <el-input
+              v-model="passwordForm.confirmPassword"
+              autocomplete="new-password"
+              placeholder="再次输入新密码"
+              show-password
+              type="password"
+            />
+          </el-form-item>
+        </section>
+      </el-form>
+      <template #footer>
+        <div class="password-dialog-footer">
+          <el-button @click="passwordDialogVisible = false">取消</el-button>
+          <el-button class="primary-action dialog-primary" type="primary" :loading="changingPassword" @click="submitPasswordChange">保存并重新登录</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </main>
 </template>
 
@@ -272,20 +354,31 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../../store/auth'
-import { createDecision, getDecisionDashboard, reviewDecision } from '../../api/decision'
+import { createDecision, getDecisionDashboard, reviewDecision, searchDecisions } from '../../api/decision'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const createFormRef = ref()
+const passwordFormRef = ref()
 const loading = ref(false)
 const creating = ref(false)
 const reviewing = ref(false)
+const changingPassword = ref(false)
+const isSearching = ref(false)
+const isSearchMode = ref(false)
 const createDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
+const passwordDialogVisible = ref(false)
 const activeDecision = ref(null)
 const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} }, recent: [], pendingReview: [] })
+const searchResults = ref([])
 const tagOptions = ['学习', '消费', '工作', '生活', '健康']
 const moodOptions = ['平静', '焦虑', '纠结', '兴奋', '冲动']
+const statusFilterOptions = [
+  { label: '全部', value: '' },
+  { label: '待回看', value: 'pending' },
+  { label: '已复盘', value: 'reviewed' }
+]
 const optionTree = ref(createDefaultOptionTree())
 const selectedOptionId = ref(optionTree.value[0].id)
 
@@ -304,6 +397,18 @@ const reviewForm = reactive({
   feedback: ''
 })
 
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const searchForm = reactive({
+  keyword: '',
+  tag: '',
+  status: ''
+})
+
 const reviewSatisfactionOptions = [
   { value: '满意', icon: '很值', hint: '结果比预期更好', tone: 'good' },
   { value: '一般', icon: '还行', hint: '基本符合预期', tone: 'normal' },
@@ -316,6 +421,37 @@ const createRules = {
   reviewTime: [{ required: true, message: '回看时间不能为空', trigger: 'change' }]
 }
 
+const passwordRules = {
+  oldPassword: [{ required: true, message: '旧密码不能为空', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '新密码不能为空', trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,32}$/, message: '新密码需要 8-32 位且至少包含字母和数字', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (value && value === passwordForm.oldPassword) {
+          callback(new Error('新密码不能和旧密码相同'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ],
+  confirmPassword: [
+    { required: true, message: '确认密码不能为空', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error('两次输入的密码不一致'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '朋友')
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -324,7 +460,8 @@ const greeting = computed(() => {
   return '晚上好'
 })
 const summary = computed(() => dashboard.value.summary || { total: 0, pending: 0, reviewed: 0, satisfaction: {} })
-const recentDecisions = computed(() => dashboard.value.recent || [])
+const hasSearchFilters = computed(() => Boolean(searchForm.keyword || searchForm.tag || searchForm.status))
+const recentDecisions = computed(() => (isSearchMode.value ? searchResults.value : dashboard.value.recent || []))
 const pendingReview = computed(() => dashboard.value.pendingReview || [])
 const satisfactionRate = computed(() => {
   const reviewed = summary.value.reviewed || 0
@@ -355,14 +492,81 @@ async function loadDashboard() {
   loading.value = true
   try {
     dashboard.value = await getDecisionDashboard()
+    if (!isSearchMode.value) {
+      searchResults.value = []
+    }
   } finally {
     loading.value = false
+  }
+}
+
+async function executeDecisionSearch() {
+  if (!hasSearchFilters.value) {
+    isSearchMode.value = false
+    searchResults.value = []
+    await loadDashboard()
+    return
+  }
+  isSearching.value = true
+  try {
+    searchResults.value = await searchDecisions({
+      keyword: searchForm.keyword || undefined,
+      tag: searchForm.tag || undefined,
+      status: searchForm.status || undefined,
+      limit: 50
+    })
+    isSearchMode.value = true
+  } finally {
+    isSearching.value = false
+  }
+}
+
+async function resetDecisionSearch() {
+  searchForm.keyword = ''
+  searchForm.tag = ''
+  searchForm.status = ''
+  isSearchMode.value = false
+  searchResults.value = []
+  await loadDashboard()
+}
+
+async function refreshDecisionData() {
+  await loadDashboard()
+  if (isSearchMode.value) {
+    await executeDecisionSearch()
   }
 }
 
 async function handleLogout() {
   await authStore.logout()
   router.push('/login')
+}
+
+function resetPasswordForm() {
+  Object.assign(passwordForm, {
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  passwordFormRef.value?.clearValidate()
+}
+
+function openPasswordDialog() {
+  resetPasswordForm()
+  passwordDialogVisible.value = true
+}
+
+async function submitPasswordChange() {
+  await passwordFormRef.value.validate()
+  changingPassword.value = true
+  try {
+    await authStore.changePassword({ ...passwordForm })
+    ElMessage.success('密码已更新，请重新登录')
+    passwordDialogVisible.value = false
+    router.push('/login')
+  } finally {
+    changingPassword.value = false
+  }
 }
 
 function openCreateDialog() {
@@ -380,7 +584,7 @@ async function submitCreate() {
     ElMessage.success('决策已保存')
     resetCreateForm()
     createDialogVisible.value = false
-    await loadDashboard()
+    await refreshDecisionData()
   } finally {
     creating.value = false
   }
@@ -403,7 +607,7 @@ async function submitReview() {
     await reviewDecision(activeDecision.value.id, { ...reviewForm })
     ElMessage.success('回测已保存')
     reviewDialogVisible.value = false
-    await loadDashboard()
+    await refreshDecisionData()
   } finally {
     reviewing.value = false
   }

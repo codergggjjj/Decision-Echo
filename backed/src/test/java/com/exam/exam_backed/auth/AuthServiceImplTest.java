@@ -1,6 +1,8 @@
 package com.exam.exam_backed.auth;
 
 import com.exam.exam_backed.auth.dto.LoginRequest;
+import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
+import com.exam.exam_backed.auth.dto.RegisterRequest;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
 import com.exam.exam_backed.auth.service.TokenService;
@@ -92,16 +94,134 @@ class AuthServiceImplTest {
         assertEquals("账号已禁用", error.getMessage());
     }
 
+    @Test
+    void registerCreatesEnabledUserWithEncodedPasswordAndToken() {
+        var captcha = captchaService.createCaptcha();
+
+        var response = authService.register(new RegisterRequest(
+                "new_user",
+                "新朋友",
+                "NewUser123",
+                "NewUser123",
+                captcha.captchaId(),
+                captcha.answerForTest()
+        ));
+
+        User saved = userMapper.findByUsername("new_user").orElseThrow();
+        assertNotNull(saved.id());
+        assertEquals("新朋友", saved.nickname());
+        assertEquals(1, saved.status());
+        assertTrue(passwordEncoder.matches("NewUser123", saved.passwordHash()));
+        assertEquals("new_user", response.user().username());
+        assertTrue(tokenService.validate(response.token()).isPresent());
+    }
+
+    @Test
+    void registerRejectsDuplicateUsername() {
+        userMapper.save(new User(1L, "new_user", passwordEncoder.encode("OldPass123"), "旧用户", 1));
+        var captcha = captchaService.createCaptcha();
+
+        var error = assertThrows(BusinessException.class, () -> authService.register(new RegisterRequest(
+                "new_user",
+                "新朋友",
+                "NewUser123",
+                "NewUser123",
+                captcha.captchaId(),
+                captcha.answerForTest()
+        )));
+
+        assertEquals("用户名已存在", error.getMessage());
+    }
+
+    @Test
+    void registerRejectsInvalidCaptcha() {
+        var captcha = captchaService.createCaptcha();
+
+        var error = assertThrows(BusinessException.class, () -> authService.register(new RegisterRequest(
+                "new_user",
+                "新朋友",
+                "NewUser123",
+                "NewUser123",
+                captcha.captchaId(),
+                "0000"
+        )));
+
+        assertEquals("验证码错误", error.getMessage());
+    }
+
+    @Test
+    void registerRejectsMismatchedConfirmPassword() {
+        var captcha = captchaService.createCaptcha();
+
+        var error = assertThrows(BusinessException.class, () -> authService.register(new RegisterRequest(
+                "new_user",
+                "新朋友",
+                "NewUser123",
+                "OtherPass123",
+                captcha.captchaId(),
+                captcha.answerForTest()
+        )));
+
+        assertEquals("两次输入的密码不一致", error.getMessage());
+    }
+
+    @Test
+    void changePasswordUpdatesPasswordWhenOldPasswordIsCorrect() {
+        userMapper.save(new User(1L, "test_user", passwordEncoder.encode("OldPass123"), "测试用户", 1));
+
+        authService.changePassword(1L, new PasswordChangeRequest("OldPass123", "NewPass123", "NewPass123"));
+
+        User saved = userMapper.findByUsername("test_user").orElseThrow();
+        assertFalse(passwordEncoder.matches("OldPass123", saved.passwordHash()));
+        assertTrue(passwordEncoder.matches("NewPass123", saved.passwordHash()));
+    }
+
+    @Test
+    void changePasswordRejectsWrongOldPassword() {
+        userMapper.save(new User(1L, "test_user", passwordEncoder.encode("OldPass123"), "测试用户", 1));
+
+        var error = assertThrows(BusinessException.class, () ->
+                authService.changePassword(1L, new PasswordChangeRequest("WrongPass123", "NewPass123", "NewPass123"))
+        );
+
+        assertEquals("旧密码不正确", error.getMessage());
+    }
+
     private static class FakeUserMapper implements UserMapper {
         private final Map<String, User> users = new ConcurrentHashMap<>();
+        private long nextId = 1L;
 
         void save(User user) {
             users.put(user.username(), user);
+            nextId = Math.max(nextId, user.id() == null ? nextId : user.id() + 1);
         }
 
         @Override
         public Optional<User> findByUsername(String username) {
             return Optional.ofNullable(users.get(username));
+        }
+
+        @Override
+        public Optional<User> findById(Long id) {
+            return users.values().stream()
+                    .filter(user -> user.id().equals(id))
+                    .findFirst();
+        }
+
+        @Override
+        public int insert(User user) {
+            save(new User(nextId++, user.username(), user.passwordHash(), user.nickname(), user.status()));
+            return 1;
+        }
+
+        @Override
+        public int updatePassword(Long id, String passwordHash) {
+            User user = findById(id).orElse(null);
+            if (user == null) {
+                return 0;
+            }
+            users.put(user.username(), new User(user.id(), user.username(), passwordHash, user.nickname(), user.status()));
+            return 1;
         }
     }
 }

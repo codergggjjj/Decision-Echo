@@ -39,8 +39,14 @@ public class DecisionController {
     }
 
     @GetMapping
-    public Result<List<Decision>> recent(HttpServletRequest request, @RequestParam(defaultValue = "20") int limit) {
-        return Result.success(decisionService.recent(currentUserId(request), limit));
+    public Result<List<Decision>> search(
+            HttpServletRequest request,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return Result.success(decisionService.search(currentUserId(request), keyword, tag, status, limit));
     }
 
     @PostMapping

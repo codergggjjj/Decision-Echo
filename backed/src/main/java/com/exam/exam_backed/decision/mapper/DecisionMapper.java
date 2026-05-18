@@ -49,6 +49,34 @@ public interface DecisionMapper {
     List<Decision> findRecentByUserId(@Param("userId") Long userId, @Param("limit") int limit);
 
     @Select("""
+            <script>
+            SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
+                   review_time AS reviewTime, satisfaction, feedback, status,
+                   create_time AS createTime, update_time AS updateTime
+            FROM decision
+            WHERE user_id = #{userId}
+            <if test="keyword != null and keyword != ''">
+              AND title LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="tag != null and tag != ''">
+              AND tags LIKE CONCAT('%', #{tag}, '%')
+            </if>
+            <if test="status != null and status != ''">
+              AND status = #{status}
+            </if>
+            ORDER BY create_time DESC, id DESC
+            LIMIT #{limit}
+            </script>
+            """)
+    List<Decision> searchByUserId(
+            @Param("userId") Long userId,
+            @Param("keyword") String keyword,
+            @Param("tag") String tag,
+            @Param("status") String status,
+            @Param("limit") int limit
+    );
+
+    @Select("""
             SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
                    review_time AS reviewTime, satisfaction, feedback, status,
                    create_time AS createTime, update_time AS updateTime

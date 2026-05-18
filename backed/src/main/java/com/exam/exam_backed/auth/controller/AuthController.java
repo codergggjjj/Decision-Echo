@@ -1,6 +1,8 @@
 package com.exam.exam_backed.auth.controller;
 
 import com.exam.exam_backed.auth.dto.LoginRequest;
+import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
+import com.exam.exam_backed.auth.dto.RegisterRequest;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
 import com.exam.exam_backed.auth.service.TokenService;
@@ -14,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,11 +44,31 @@ public class AuthController {
         return Result.success(authService.login(request));
     }
 
+    @PostMapping("/register")
+    public Result<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return Result.success(authService.register(request));
+    }
+
     @GetMapping("/me")
     public Result<UserVO> me(HttpServletRequest request) {
         return Result.success(tokenService.validate(extractToken(request))
                 .map(UserVO::from)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录")));
+    }
+
+    @PutMapping("/password")
+    public Result<Void> changePassword(
+            HttpServletRequest request,
+            @Valid @RequestBody PasswordChangeRequest passwordChangeRequest
+    ) {
+        String token = extractToken(request);
+        Long userId = tokenService.validate(token)
+                .map(UserVO::from)
+                .map(UserVO::id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"));
+        authService.changePassword(userId, passwordChangeRequest);
+        tokenService.revoke(token);
+        return Result.success(null);
     }
 
     @PostMapping("/logout")
