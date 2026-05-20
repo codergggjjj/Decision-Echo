@@ -2,6 +2,7 @@ package com.exam.exam_backed.auth.service.impl;
 
 import com.exam.exam_backed.auth.dto.LoginRequest;
 import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
+import com.exam.exam_backed.auth.dto.ProfileUpdateRequest;
 import com.exam.exam_backed.auth.dto.RegisterRequest;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
@@ -68,6 +69,7 @@ public class AuthServiceImpl implements AuthService {
                 request.username(),
                 passwordEncoder.encode(request.password()),
                 request.nickname(),
+                null,
                 1
         );
         userMapper.insert(user);
@@ -91,5 +93,26 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.LOGIN_ERROR, "旧密码不正确");
         }
         userMapper.updatePassword(userId, passwordEncoder.encode(request.newPassword()));
+    }
+
+    @Override
+    @Transactional
+    public UserVO updateProfile(Long userId, ProfileUpdateRequest request) {
+        userMapper.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"));
+        String avatarUrl = request.avatarUrl() == null || request.avatarUrl().isBlank()
+                ? null
+                : request.avatarUrl().trim();
+        userMapper.updateProfile(userId, request.nickname().trim(), avatarUrl);
+        return userMapper.findById(userId)
+                .map(UserVO::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR, "资料更新失败"));
+    }
+
+    @Override
+    public UserVO currentUser(Long userId) {
+        return userMapper.findById(userId)
+                .map(UserVO::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"));
     }
 }

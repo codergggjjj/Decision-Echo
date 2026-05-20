@@ -32,7 +32,7 @@ public interface DecisionMapper {
                    review_time AS reviewTime, satisfaction, feedback, status,
                    create_time AS createTime, update_time AS updateTime
             FROM decision
-            WHERE id = #{id} AND user_id = #{userId}
+            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
             LIMIT 1
             """)
     Optional<Decision> findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
@@ -42,7 +42,7 @@ public interface DecisionMapper {
                    review_time AS reviewTime, satisfaction, feedback, status,
                    create_time AS createTime, update_time AS updateTime
             FROM decision
-            WHERE user_id = #{userId}
+            WHERE user_id = #{userId} AND deleted = 0
             ORDER BY create_time DESC, id DESC
             LIMIT #{limit}
             """)
@@ -54,7 +54,7 @@ public interface DecisionMapper {
                    review_time AS reviewTime, satisfaction, feedback, status,
                    create_time AS createTime, update_time AS updateTime
             FROM decision
-            WHERE user_id = #{userId}
+            WHERE user_id = #{userId} AND deleted = 0
             <if test="keyword != null and keyword != ''">
               AND title LIKE CONCAT('%', #{keyword}, '%')
             </if>
@@ -82,6 +82,7 @@ public interface DecisionMapper {
                    create_time AS createTime, update_time AS updateTime
             FROM decision
             WHERE user_id = #{userId}
+              AND deleted = 0
               AND status = 'pending'
               AND review_time <= NOW()
             ORDER BY review_time ASC, id DESC
@@ -89,16 +90,17 @@ public interface DecisionMapper {
             """)
     List<Decision> findDuePendingReviewByUserId(@Param("userId") Long userId, @Param("limit") int limit);
 
-    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId}")
+    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId} AND deleted = 0")
     int countByUserId(@Param("userId") Long userId);
 
-    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId} AND status = #{status}")
+    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId} AND status = #{status} AND deleted = 0")
     int countByUserIdAndStatus(@Param("userId") Long userId, @Param("status") String status);
 
     @Select("""
             SELECT COUNT(*)
             FROM decision
             WHERE user_id = #{userId}
+              AND deleted = 0
               AND status = 'reviewed'
               AND satisfaction = #{satisfaction}
             """)
@@ -110,7 +112,7 @@ public interface DecisionMapper {
                 feedback = #{feedback},
                 status = #{status},
                 update_time = NOW()
-            WHERE id = #{id} AND user_id = #{userId}
+            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
             """)
     int updateReview(
             @Param("id") Long id,
@@ -119,4 +121,12 @@ public interface DecisionMapper {
             @Param("feedback") String feedback,
             @Param("status") String status
     );
+
+    @Update("""
+            UPDATE decision
+            SET deleted = 1,
+                update_time = NOW()
+            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
+            """)
+    int softDelete(@Param("id") Long id, @Param("userId") Long userId);
 }

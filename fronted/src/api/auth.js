@@ -17,6 +17,18 @@ export function getCurrentUser() {
   return request.get(API_PATHS.me)
 }
 
+export function updateProfile(data) {
+  return request.put(API_PATHS.profile, data)
+}
+
+export function uploadAvatar(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post(API_PATHS.avatar, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
 export function changePassword(data) {
   return request.put(API_PATHS.changePassword, data)
 }

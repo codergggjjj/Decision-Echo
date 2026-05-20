@@ -9,10 +9,18 @@ export function searchDecisions(params) {
   return request.get(API_PATHS.decisions, { params })
 }
 
+export function getDecisionDetail(id) {
+  return request.get(`${API_PATHS.decisions}/${id}`)
+}
+
 export function createDecision(data) {
   return request.post(API_PATHS.decisions, data)
 }
 
 export function reviewDecision(id, data) {
   return request.put(`${API_PATHS.decisions}/${id}/review`, data)
+}
+
+export function deleteDecision(id) {
+  return request.delete(`${API_PATHS.decisions}/${id}`)
 }

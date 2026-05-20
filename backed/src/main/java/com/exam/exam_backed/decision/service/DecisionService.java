@@ -4,6 +4,7 @@ import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.vo.DecisionDashboard;
+import com.exam.exam_backed.decision.vo.DecisionDetail;
 import com.exam.exam_backed.decision.vo.DecisionSummary;
 
 import java.util.List;
@@ -19,5 +20,9 @@ public interface DecisionService {
 
     DecisionSummary summary(Long userId);
 
+    DecisionDetail detail(Long userId, Long decisionId);
+
     Decision review(Long userId, Long decisionId, DecisionReviewRequest request);
+
+    void delete(Long userId, Long decisionId);
 }

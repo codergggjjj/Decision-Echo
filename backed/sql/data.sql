@@ -1,13 +1,14 @@
 USE `exam_final`;
 
-INSERT INTO `user` (`id`, `username`, `password_hash`, `nickname`, `status`)
+INSERT INTO `user` (`id`, `username`, `password_hash`, `nickname`, `avatar_url`, `status`)
 VALUES
-    (1, 'test_user', '$2a$10$kJMUF688VDvD.Fwasn2J5.sdQppOqWjAbYVHuGOHca0cqnFdJ1Qm2', '测试用户', 1),
-    (2, 'admin', '$2a$10$GcnwMcBBWZZbKTLeaPKa3.iloX.6WUSqmDUgpE.j2Y/mF9ilrSaYG', '管理员', 1),
-    (3, 'disabled_user', '$2a$10$OYZUN0Ck2wGvch.vqjRwMuOQnaMKhdR4jgWxIQhs9BAyMfSqcIDIW', '禁用用户', 0)
+    (1, 'test_user', '$2a$10$kJMUF688VDvD.Fwasn2J5.sdQppOqWjAbYVHuGOHca0cqnFdJ1Qm2', '测试用户', NULL, 1),
+    (2, 'admin', '$2a$10$GcnwMcBBWZZbKTLeaPKa3.iloX.6WUSqmDUgpE.j2Y/mF9ilrSaYG', '管理员', NULL, 1),
+    (3, 'disabled_user', '$2a$10$OYZUN0Ck2wGvch.vqjRwMuOQnaMKhdR4jgWxIQhs9BAyMfSqcIDIW', '禁用用户', NULL, 0)
 ON DUPLICATE KEY UPDATE
     `password_hash` = VALUES(`password_hash`),
     `nickname` = VALUES(`nickname`),
+    `avatar_url` = VALUES(`avatar_url`),
     `status` = VALUES(`status`);
 
 INSERT INTO `decision` (

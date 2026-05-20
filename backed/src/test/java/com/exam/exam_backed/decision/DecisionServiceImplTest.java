@@ -197,9 +197,101 @@ class DecisionServiceImplTest {
         assertSame(decisionMapper.recordAfterReview, reviewed);
     }
 
+    @Test
+    void detailReturnsCurrentUserDecisionAndSelectedOption() {
+        LocalDateTime now = LocalDateTime.of(2026, 6, 1, 10, 0);
+        decisionMapper.seed(new Decision(
+                1L,
+                7L,
+                "是否调整学习计划",
+                "晚上效率不稳定",
+                "{\"version\":1,\"selectedId\":\"opt_2\",\"items\":[{\"id\":\"opt_1\",\"title\":\"早起学习\",\"children\":[]},{\"id\":\"opt_2\",\"title\":\"晚间学习\",\"children\":[{\"id\":\"child_1\",\"title\":\"固定 2 小时\"}]}]}",
+                "先顺着当前作息调整",
+                "学习",
+                "平静",
+                2,
+                now.plusDays(7),
+                null,
+                null,
+                "pending",
+                now,
+                now
+        ));
+
+        var detail = decisionService.detail(7L, 1L);
+
+        assertEquals(1L, detail.id());
+        assertEquals("是否调整学习计划", detail.title());
+        assertEquals("晚上效率不稳定", detail.context());
+        assertEquals("晚间学习", detail.finalChoice());
+        assertEquals("先顺着当前作息调整", detail.reason());
+        assertEquals("pending", detail.status());
+        assertEquals(now, detail.createTime());
+        assertEquals(2, detail.options().size());
+        assertEquals("固定 2 小时", detail.options().get(1).children().get(0).title());
+    }
+
+    @Test
+    void detailRejectsDecisionFromAnotherUser() {
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 8L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now, null, null, "pending", now, now));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> decisionService.detail(7L, 1L));
+
+        assertEquals("决策记录不存在", error.getMessage());
+    }
+
+    @Test
+    void detailSupportsLegacyCommaSeparatedOptions() {
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "报名,自学", "reason", "学习", "平静", 2,
+                now, null, null, "pending", now, now));
+
+        var detail = decisionService.detail(7L, 1L);
+
+        assertEquals("", detail.finalChoice());
+        assertEquals(2, detail.options().size());
+        assertEquals("报名", detail.options().get(0).title());
+        assertEquals("自学", detail.options().get(1).title());
+    }
+
+    @Test
+    void softDeleteOnlyRemovesCurrentUsersDecisionFromReadsAndSummary() {
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.minusHours(1), null, null, "pending", now.minusDays(1), now.minusDays(1)));
+        decisionMapper.seed(new Decision(2L, 8L, "B", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.minusHours(1), null, null, "pending", now.minusDays(1), now.minusDays(1)));
+
+        decisionService.delete(7L, 1L);
+
+        assertThrows(BusinessException.class, () -> decisionService.detail(7L, 1L));
+        assertEquals(0, decisionService.summary(7L).total());
+        assertTrue(decisionService.recent(7L, 20).isEmpty());
+        assertTrue(decisionService.search(7L, null, null, null, 50).isEmpty());
+        assertTrue(decisionService.dashboard(7L).pendingReview().isEmpty());
+        assertEquals(1, decisionService.summary(8L).total());
+    }
+
+    @Test
+    void deleteRejectsMissingOrDeletedDecision() {
+        BusinessException missing = assertThrows(BusinessException.class, () -> decisionService.delete(7L, 99L));
+        assertEquals("决策记录不存在", missing.getMessage());
+
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now, null, null, "pending", now, now));
+        decisionService.delete(7L, 1L);
+
+        BusinessException deleted = assertThrows(BusinessException.class, () -> decisionService.delete(7L, 1L));
+        assertEquals("决策记录不存在", deleted.getMessage());
+    }
+
     private static class FakeDecisionMapper implements DecisionMapper {
         private final AtomicLong idGenerator = new AtomicLong(1);
         private final List<Decision> decisions = new ArrayList<>();
+        private final List<Long> deletedDecisionIds = new ArrayList<>();
         private com.exam.exam_backed.decision.vo.DecisionSummary summary;
         private List<Decision> duePendingReview = new ArrayList<>();
         private Decision recordAfterReview;
@@ -223,6 +315,7 @@ class DecisionServiceImplTest {
         public Optional<Decision> findByIdAndUserId(Long id, Long userId) {
             return decisions.stream()
                     .filter(decision -> decision.id().equals(id) && decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .findFirst();
         }
 
@@ -230,6 +323,7 @@ class DecisionServiceImplTest {
         public List<Decision> findRecentByUserId(Long userId, int limit) {
             return decisions.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .limit(limit)
                     .toList();
         }
@@ -238,6 +332,7 @@ class DecisionServiceImplTest {
         public List<Decision> searchByUserId(Long userId, String keyword, String tag, String status, int limit) {
             return decisions.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .filter(decision -> keyword == null || decision.title().contains(keyword))
                     .filter(decision -> tag == null || (decision.tags() != null && decision.tags().contains(tag)))
                     .filter(decision -> status == null || status.equals(decision.status()))
@@ -249,6 +344,7 @@ class DecisionServiceImplTest {
         public List<Decision> findDuePendingReviewByUserId(Long userId, int limit) {
             return duePendingReview.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .limit(limit)
                     .toList();
         }
@@ -260,6 +356,7 @@ class DecisionServiceImplTest {
             }
             return (int) decisions.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .count();
         }
 
@@ -273,6 +370,7 @@ class DecisionServiceImplTest {
             }
             return (int) decisions.stream()
                     .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .filter(decision -> status.equals(decision.status()))
                     .count();
         }
@@ -285,6 +383,9 @@ class DecisionServiceImplTest {
             int total = 0;
             for (Decision decision : decisions) {
                 if (!decision.userId().equals(userId)) {
+                    continue;
+                }
+                if (deletedDecisionIds.contains(decision.id())) {
                     continue;
                 }
                 if ("reviewed".equals(decision.status()) && satisfactionLabel.equals(decision.satisfaction())) {
@@ -304,6 +405,16 @@ class DecisionServiceImplTest {
                 }
             }
             return 0;
+        }
+
+        @Override
+        public int softDelete(Long id, Long userId) {
+            Optional<Decision> decision = findByIdAndUserId(id, userId);
+            if (decision.isEmpty()) {
+                return 0;
+            }
+            deletedDecisionIds.add(id);
+            return 1;
         }
     }
 }

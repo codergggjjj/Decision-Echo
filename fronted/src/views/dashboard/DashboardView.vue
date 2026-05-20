@@ -7,7 +7,10 @@
       </div>
       <div class="memory-actions">
         <button type="button" class="soft-icon-button" @click="loadDashboard">刷新</button>
-        <button type="button" class="soft-icon-button" @click="openPasswordDialog">修改密码</button>
+        <button type="button" class="avatar-nav-button" aria-label="进入个人主页" @click="goProfile">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
+          <span v-else>{{ avatarInitial }}</span>
+        </button>
         <button type="button" class="soft-icon-button" @click="handleLogout">退出</button>
       </div>
     </header>
@@ -71,7 +74,15 @@
         </div>
 
         <div v-else class="memory-feed">
-          <article v-for="decision in recentDecisions" :key="decision.id" class="memory-item" :class="statusClass(decision.status)">
+          <article
+            v-for="decision in recentDecisions"
+            :key="decision.id"
+            class="memory-item clickable"
+            :class="statusClass(decision.status)"
+            tabindex="0"
+            @click="openDetail(decision)"
+            @keydown.enter.self="openDetail(decision)"
+          >
             <div class="memory-date">
               <span>{{ formatDate(decision.reviewTime).slice(5, 10) }}</span>
               <small>{{ urgencyText(decision.urgency) }}</small>
@@ -95,7 +106,11 @@
               </div>
               <div class="memory-foot">
                 <span>回看时间 {{ formatDate(decision.reviewTime) }}</span>
-                <button v-if="decision.status !== 'reviewed'" type="button" class="inline-review" @click="openReview(decision)">现在回看</button>
+                <div class="memory-foot-actions">
+                  <button type="button" class="inline-detail" @click.stop="openDetail(decision)">查看详情</button>
+                  <button v-if="decision.status !== 'reviewed'" type="button" class="inline-review" @click.stop="openReview(decision)">现在回看</button>
+                  <button type="button" class="inline-delete" :disabled="deletingDecisionId === decision.id" @click.stop="confirmDelete(decision)">删除</button>
+                </div>
               </div>
             </div>
           </article>
@@ -251,6 +266,45 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="detailDialogVisible" class="youth-dialog decision-detail-dialog" title="决策详情" width="620px">
+      <div v-if="detailLoading" class="detail-loading">正在加载...</div>
+      <div v-else-if="decisionDetail" class="decision-detail-content">
+        <section class="detail-title-block">
+          <div>
+            <span :class="['status-pill', statusClass(decisionDetail.status)]">{{ statusText(decisionDetail.status) }}</span>
+            <small>{{ formatDate(decisionDetail.createTime) }}</small>
+          </div>
+          <h3>{{ decisionDetail.title }}</h3>
+        </section>
+
+        <section class="detail-section">
+          <span>背景</span>
+          <p>{{ decisionDetail.context || '未填写背景' }}</p>
+        </section>
+
+        <section class="detail-section">
+          <span>候选方案</span>
+          <div v-if="decisionDetail.options?.length" class="detail-option-list">
+            <article v-for="item in decisionDetail.options" :key="item.id || item.title" class="detail-option-item" :class="{ selected: item.title === decisionDetail.finalChoice }">
+              <strong>{{ item.title }}</strong>
+              <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
+            </article>
+          </div>
+          <p v-else>未记录候选方案</p>
+        </section>
+
+        <section class="detail-section">
+          <span>最终选择</span>
+          <p>{{ decisionDetail.finalChoice || '旧记录未标记最终选择' }}</p>
+        </section>
+
+        <section class="detail-section">
+          <span>选择原因</span>
+          <p>{{ decisionDetail.reason || '未填写选择原因' }}</p>
+        </section>
+      </div>
+    </el-dialog>
+
     <el-dialog v-model="reviewDialogVisible" class="youth-dialog review-decision-dialog" title="补回测" width="560px">
       <div v-if="activeDecision" class="review-dialog-content">
         <section class="review-target-card">
@@ -303,73 +357,31 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="passwordDialogVisible" class="youth-dialog password-dialog" title="修改密码" width="520px">
-      <el-form ref="passwordFormRef" class="password-form" :model="passwordForm" :rules="passwordRules" label-position="top">
-        <section class="password-card">
-          <div class="password-card-title">
-            <span>账号安全</span>
-            <p>修改成功后会退出登录，请使用新密码重新进入。</p>
-          </div>
-          <el-form-item label="旧密码" prop="oldPassword">
-            <el-input
-              v-model="passwordForm.oldPassword"
-              autocomplete="current-password"
-              placeholder="请输入当前密码"
-              show-password
-              type="password"
-            />
-          </el-form-item>
-          <el-form-item label="新密码" prop="newPassword">
-            <el-input
-              v-model="passwordForm.newPassword"
-              autocomplete="new-password"
-              placeholder="8-32 位，至少包含字母和数字"
-              show-password
-              type="password"
-            />
-          </el-form-item>
-          <el-form-item label="确认新密码" prop="confirmPassword">
-            <el-input
-              v-model="passwordForm.confirmPassword"
-              autocomplete="new-password"
-              placeholder="再次输入新密码"
-              show-password
-              type="password"
-            />
-          </el-form-item>
-        </section>
-      </el-form>
-      <template #footer>
-        <div class="password-dialog-footer">
-          <el-button @click="passwordDialogVisible = false">取消</el-button>
-          <el-button class="primary-action dialog-primary" type="primary" :loading="changingPassword" @click="submitPasswordChange">保存并重新登录</el-button>
-        </div>
-      </template>
-    </el-dialog>
   </main>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../../store/auth'
-import { createDecision, getDecisionDashboard, reviewDecision, searchDecisions } from '../../api/decision'
+import { createDecision, deleteDecision, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const createFormRef = ref()
-const passwordFormRef = ref()
 const loading = ref(false)
 const creating = ref(false)
 const reviewing = ref(false)
-const changingPassword = ref(false)
 const isSearching = ref(false)
 const isSearchMode = ref(false)
+const detailLoading = ref(false)
+const deletingDecisionId = ref(null)
 const createDialogVisible = ref(false)
+const detailDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
-const passwordDialogVisible = ref(false)
 const activeDecision = ref(null)
+const decisionDetail = ref(null)
 const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} }, recent: [], pendingReview: [] })
 const searchResults = ref([])
 const tagOptions = ['学习', '消费', '工作', '生活', '健康']
@@ -397,12 +409,6 @@ const reviewForm = reactive({
   feedback: ''
 })
 
-const passwordForm = reactive({
-  oldPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-})
-
 const searchForm = reactive({
   keyword: '',
   tag: '',
@@ -421,38 +427,9 @@ const createRules = {
   reviewTime: [{ required: true, message: '回看时间不能为空', trigger: 'change' }]
 }
 
-const passwordRules = {
-  oldPassword: [{ required: true, message: '旧密码不能为空', trigger: 'blur' }],
-  newPassword: [
-    { required: true, message: '新密码不能为空', trigger: 'blur' },
-    { pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,32}$/, message: '新密码需要 8-32 位且至少包含字母和数字', trigger: 'blur' },
-    {
-      validator: (_rule, value, callback) => {
-        if (value && value === passwordForm.oldPassword) {
-          callback(new Error('新密码不能和旧密码相同'))
-          return
-        }
-        callback()
-      },
-      trigger: 'blur'
-    }
-  ],
-  confirmPassword: [
-    { required: true, message: '确认密码不能为空', trigger: 'blur' },
-    {
-      validator: (_rule, value, callback) => {
-        if (value !== passwordForm.newPassword) {
-          callback(new Error('两次输入的密码不一致'))
-          return
-        }
-        callback()
-      },
-      trigger: 'blur'
-    }
-  ]
-}
-
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '朋友')
+const avatarUrl = computed(() => authStore.user?.avatarUrl || '')
+const avatarInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
 const greeting = computed(() => {
   const hour = new Date().getHours()
   if (hour < 11) return '早上好'
@@ -542,35 +519,23 @@ async function handleLogout() {
   router.push('/login')
 }
 
-function resetPasswordForm() {
-  Object.assign(passwordForm, {
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
-  passwordFormRef.value?.clearValidate()
-}
-
-function openPasswordDialog() {
-  resetPasswordForm()
-  passwordDialogVisible.value = true
-}
-
-async function submitPasswordChange() {
-  await passwordFormRef.value.validate()
-  changingPassword.value = true
-  try {
-    await authStore.changePassword({ ...passwordForm })
-    ElMessage.success('密码已更新，请重新登录')
-    passwordDialogVisible.value = false
-    router.push('/login')
-  } finally {
-    changingPassword.value = false
-  }
+function goProfile() {
+  router.push('/profile')
 }
 
 function openCreateDialog() {
   createDialogVisible.value = true
+}
+
+async function openDetail(decision) {
+  detailDialogVisible.value = true
+  detailLoading.value = true
+  decisionDetail.value = null
+  try {
+    decisionDetail.value = await getDecisionDetail(decision.id)
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function submitCreate() {
@@ -595,6 +560,30 @@ function openReview(decision) {
   reviewForm.satisfaction = '满意'
   reviewForm.feedback = ''
   reviewDialogVisible.value = true
+}
+
+async function confirmDelete(decision) {
+  try {
+    await ElMessageBox.confirm(`确定删除“${decision.title}”吗？删除后不会再出现在列表和统计中。`, '删除决策', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  deletingDecisionId.value = decision.id
+  try {
+    await deleteDecision(decision.id)
+    ElMessage.success('决策已删除')
+    if (decisionDetail.value?.id === decision.id) {
+      detailDialogVisible.value = false
+      decisionDetail.value = null
+    }
+    await refreshDecisionData()
+  } finally {
+    deletingDecisionId.value = null
+  }
 }
 
 async function submitReview() {

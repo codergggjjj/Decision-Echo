@@ -291,7 +291,6 @@ decisions: /api/decisions
 参考 B 站风格
 浅色背景
 粉蓝强调色
-8px 圆角
 柔和阴影
 轻动态 hover/focus
 ```

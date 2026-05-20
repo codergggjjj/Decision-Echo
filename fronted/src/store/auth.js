@@ -1,6 +1,14 @@
 import { defineStore } from 'pinia'
 import { getStoredUser, getToken, removeStoredUser, removeToken, setStoredUser, setToken } from '../utils/token'
-import { changePassword as changePasswordApi, getCurrentUser, login as loginApi, logout as logoutApi, register as registerApi } from '../api/auth'
+import {
+  changePassword as changePasswordApi,
+  getCurrentUser,
+  login as loginApi,
+  logout as logoutApi,
+  register as registerApi,
+  updateProfile as updateProfileApi,
+  uploadAvatar as uploadAvatarApi
+} from '../api/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -32,6 +40,15 @@ export const useAuthStore = defineStore('auth', {
       this.user = user
       setStoredUser(user)
       return user
+    },
+    async updateProfile(payload) {
+      const user = await updateProfileApi(payload)
+      this.user = user
+      setStoredUser(user)
+      return user
+    },
+    async uploadAvatar(file) {
+      return uploadAvatarApi(file)
     },
     async logout() {
       try {

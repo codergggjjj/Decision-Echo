@@ -3,6 +3,8 @@ export const API_PATHS = {
   login: '/api/auth/login',
   register: '/api/auth/register',
   me: '/api/auth/me',
+  profile: '/api/auth/profile',
+  avatar: '/api/auth/avatar',
   changePassword: '/api/auth/password',
   logout: '/api/auth/logout',
   decisionDashboard: '/api/decisions/dashboard',

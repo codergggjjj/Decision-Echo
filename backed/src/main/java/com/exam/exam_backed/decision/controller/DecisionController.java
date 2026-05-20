@@ -9,8 +9,10 @@ import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.vo.DecisionDashboard;
+import com.exam.exam_backed.decision.vo.DecisionDetail;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -49,6 +51,11 @@ public class DecisionController {
         return Result.success(decisionService.search(currentUserId(request), keyword, tag, status, limit));
     }
 
+    @GetMapping("/{id}")
+    public Result<DecisionDetail> detail(HttpServletRequest request, @PathVariable Long id) {
+        return Result.success(decisionService.detail(currentUserId(request), id));
+    }
+
     @PostMapping
     public Result<Decision> create(HttpServletRequest request, @Valid @RequestBody DecisionCreateRequest body) {
         return Result.success(decisionService.create(currentUserId(request), body));
@@ -61,6 +68,12 @@ public class DecisionController {
             @Valid @RequestBody DecisionReviewRequest body
     ) {
         return Result.success(decisionService.review(currentUserId(request), id, body));
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(HttpServletRequest request, @PathVariable Long id) {
+        decisionService.delete(currentUserId(request), id);
+        return Result.success(null);
     }
 
     private Long currentUserId(HttpServletRequest request) {

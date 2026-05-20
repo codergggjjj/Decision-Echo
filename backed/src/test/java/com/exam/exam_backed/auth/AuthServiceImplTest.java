@@ -2,6 +2,7 @@ package com.exam.exam_backed.auth;
 
 import com.exam.exam_backed.auth.dto.LoginRequest;
 import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
+import com.exam.exam_backed.auth.dto.ProfileUpdateRequest;
 import com.exam.exam_backed.auth.dto.RegisterRequest;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
@@ -187,6 +188,31 @@ class AuthServiceImplTest {
         assertEquals("旧密码不正确", error.getMessage());
     }
 
+    @Test
+    void updateProfileChangesNicknameAndAvatar() {
+        userMapper.save(new User(1L, "test_user", passwordEncoder.encode("OldPass123"), "测试用户", 1));
+
+        var updated = authService.updateProfile(1L, new ProfileUpdateRequest("新的昵称", "/uploads/avatars/a.png"));
+
+        assertEquals("test_user", updated.username());
+        assertEquals("新的昵称", updated.nickname());
+        assertEquals("/uploads/avatars/a.png", updated.avatarUrl());
+        User saved = userMapper.findById(1L).orElseThrow();
+        assertEquals("新的昵称", saved.nickname());
+        assertEquals("/uploads/avatars/a.png", saved.avatarUrl());
+    }
+
+    @Test
+    void currentUserReturnsLatestProfileFromDatabase() {
+        userMapper.save(new User(1L, "test_user", passwordEncoder.encode("OldPass123"), "测试用户", 1));
+        authService.updateProfile(1L, new ProfileUpdateRequest("新的昵称", "/uploads/avatars/a.png"));
+
+        var currentUser = authService.currentUser(1L);
+
+        assertEquals("新的昵称", currentUser.nickname());
+        assertEquals("/uploads/avatars/a.png", currentUser.avatarUrl());
+    }
+
     private static class FakeUserMapper implements UserMapper {
         private final Map<String, User> users = new ConcurrentHashMap<>();
         private long nextId = 1L;
@@ -210,7 +236,7 @@ class AuthServiceImplTest {
 
         @Override
         public int insert(User user) {
-            save(new User(nextId++, user.username(), user.passwordHash(), user.nickname(), user.status()));
+            save(new User(nextId++, user.username(), user.passwordHash(), user.nickname(), user.avatarUrl(), user.status()));
             return 1;
         }
 
@@ -220,7 +246,17 @@ class AuthServiceImplTest {
             if (user == null) {
                 return 0;
             }
-            users.put(user.username(), new User(user.id(), user.username(), passwordHash, user.nickname(), user.status()));
+            users.put(user.username(), new User(user.id(), user.username(), passwordHash, user.nickname(), user.avatarUrl(), user.status(), user.createTime()));
+            return 1;
+        }
+
+        @Override
+        public int updateProfile(Long id, String nickname, String avatarUrl) {
+            User user = findById(id).orElse(null);
+            if (user == null) {
+                return 0;
+            }
+            users.put(user.username(), new User(user.id(), user.username(), user.passwordHash(), nickname, avatarUrl, user.status(), user.createTime()));
             return 1;
         }
     }

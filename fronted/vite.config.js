@@ -9,6 +9,10 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_API_BASE_URL || 'http://localhost:9889',
         changeOrigin: true
+      },
+      '/uploads': {
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:9889',
+        changeOrigin: true
       }
     }
   }
