@@ -200,6 +200,30 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void tagBarCountsCurrentUserDecisionTags() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习,工作", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "学习，生活", "平静", 2,
+                now.minusDays(1), "一般", "还行", "reviewed", now, now));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "工作", "焦虑", 2,
+                now.minusDays(1), "后悔", "不合适", "reviewed", now, now));
+        decisionMapper.seed(new Decision(4L, 8L, "D", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+
+        var result = analysisService.tagBar(7L);
+
+        assertEquals(5, result.total());
+        assertEquals("学习", result.items().get(0).name());
+        assertEquals(2, result.items().get(0).value());
+        assertEquals("工作", result.items().get(1).name());
+        assertEquals(2, result.items().get(1).value());
+        assertEquals("生活", result.items().get(2).name());
+        assertEquals(1, result.items().get(2).value());
+    }
+
+    @Test
     void dashboardUsesDatabaseSummaryAndOnlyDuePendingReview() {
         LocalDateTime now = LocalDateTime.now();
         decisionMapper.summary = new com.exam.exam_backed.decision.vo.DecisionSummary(
@@ -593,6 +617,16 @@ class DecisionServiceImplTest {
                     .stream()
                     .sorted(Comparator.comparing(entry -> entry.getKey()))
                     .map(entry -> new TrendCount(entry.getKey(), entry.getValue()))
+                    .toList();
+        }
+
+        @Override
+        public List<String> findTagsByUserId(Long userId) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .map(Decision::tags)
+                    .filter(tags -> tags != null && !tags.isBlank())
                     .toList();
         }
 

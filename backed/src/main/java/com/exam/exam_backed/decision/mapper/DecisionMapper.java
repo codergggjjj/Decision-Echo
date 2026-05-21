@@ -176,6 +176,16 @@ public interface DecisionMapper {
             @Param("end") LocalDateTime end
     );
 
+    @Select("""
+            SELECT tags
+            FROM decision
+            WHERE user_id = #{userId}
+              AND deleted = 0
+              AND tags IS NOT NULL
+              AND tags <> ''
+            """)
+    List<String> findTagsByUserId(@Param("userId") Long userId);
+
     record TrendCount(String label, int count) {
     }
 

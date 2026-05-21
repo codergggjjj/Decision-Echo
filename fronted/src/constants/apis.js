@@ -10,6 +10,7 @@ export const API_PATHS = {
   analysisSatisfactionPie: '/api/analysis/satisfaction-pie',
   analysisMoodSatisfaction: '/api/analysis/mood-satisfaction',
   analysisTrendLine: '/api/analysis/trend-line',
+  analysisTagBar: '/api/analysis/tag-bar',
   decisionDashboard: '/api/decisions/dashboard',
   decisions: '/api/decisions'
 }

@@ -12,3 +12,7 @@ export function getTrendLine(params) {
 export function getMoodSatisfaction() {
   return request.get(API_PATHS.analysisMoodSatisfaction)
 }
+
+export function getTagBar() {
+  return request.get(API_PATHS.analysisTagBar)
+}

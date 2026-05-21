@@ -97,40 +97,49 @@
         </div>
       </article>
 
-      <article v-for="item in placeholderCards" :key="item.title" class="analysis-card placeholder-card">
-        <div class="placeholder-icon">{{ item.icon }}</div>
-        <div>
-          <span>{{ item.kicker }}</span>
-          <h2>{{ item.title }}</h2>
-          <p>图表区域已预留，后续版本接入数据。</p>
+      <article class="analysis-card tag-card" v-loading="tagLoading">
+        <div class="tag-title">
+          <div>
+            <span>标签偏好</span>
+            <h2>标签分布图</h2>
+          </div>
+          <strong>{{ tagTotal }} 次</strong>
         </div>
+        <div v-if="isTagEmpty" class="tag-empty">
+          <strong>暂无标签数据</strong>
+          <p>记录决策标签后，这里会展示各标签出现次数。</p>
+        </div>
+        <div v-show="!isTagEmpty" ref="tagChartRef" class="tag-chart" aria-label="标签分布柱状图"></div>
       </article>
     </section>
   </main>
 </template>
 
 <script setup>
-import { LineChart, PieChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { init, use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMoodSatisfaction, getSatisfactionPie, getTrendLine } from '../../api/analysis'
+import { getMoodSatisfaction, getSatisfactionPie, getTagBar, getTrendLine } from '../../api/analysis'
 import { useAuthStore } from '../../store/auth'
 
-use([PieChart, LineChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
+use([PieChart, LineChart, BarChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
 
 const router = useRouter()
 const authStore = useAuthStore()
 const chartRef = ref(null)
 const trendChartRef = ref(null)
+const tagChartRef = ref(null)
 const loading = ref(false)
 const trendLoading = ref(false)
 const moodLoading = ref(false)
+const tagLoading = ref(false)
 const pieData = ref([])
 const trendData = ref({ labels: [], counts: [], granularity: 'month', selectedMonth: '' })
 const moodData = ref({ total: 0, items: [] })
+const tagData = ref([])
 const filters = ref({
   tag: '',
   mood: ''
@@ -138,12 +147,10 @@ const filters = ref({
 const selectedMonth = ref('')
 let chartInstance = null
 let trendChartInstance = null
+let tagChartInstance = null
 
 const tagOptions = ['学习', '消费', '工作', '生活', '健康']
 const moodOptions = ['平静', '焦虑', '纠结', '兴奋', '冲动']
-const placeholderCards = [
-  { kicker: '标签偏好', title: '标签分布图', icon: '#' }
-]
 const satisfactionOptions = [
   { label: '满意', key: 'good' },
   { label: '一般', key: 'normal' },
@@ -154,7 +161,9 @@ const total = computed(() => pieData.value.reduce((sum, item) => sum + item.valu
 const isEmpty = computed(() => total.value === 0)
 const trendTotal = computed(() => trendData.value.counts.reduce((sum, value) => sum + value, 0))
 const moodTotal = computed(() => moodData.value.total || 0)
+const tagTotal = computed(() => tagData.value.reduce((sum, item) => sum + item.value, 0))
 const isTrendEmpty = computed(() => trendTotal.value === 0)
+const isTagEmpty = computed(() => tagTotal.value === 0)
 const trendMode = computed(() => trendData.value.granularity === 'day' ? 'month' : 'year')
 const trendTitle = computed(() => trendMode.value === 'month' ? `${trendData.value.selectedMonth} 每日趋势` : '趋势折线图')
 const trendEmptyText = computed(() => trendMode.value === 'month' ? '当前月份暂无决策记录。' : '创建决策后，这里会展示每月新增数量。')
@@ -260,6 +269,45 @@ const trendOptions = computed(() => ({
   ]
 }))
 
+const tagOptionsConfig = computed(() => ({
+  color: ['#ff9f7a'],
+  grid: {
+    top: 24,
+    right: 16,
+    bottom: 34,
+    left: 40
+  },
+  tooltip: {
+    trigger: 'axis',
+    formatter(params) {
+      const point = params?.[0]
+      return point ? `${point.name}<br/>${point.data} 次` : ''
+    }
+  },
+  xAxis: {
+    type: 'category',
+    data: tagData.value.map((item) => item.name),
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: '#d7dee8' } },
+    axisLabel: { color: '#64748b', fontSize: 12 }
+  },
+  yAxis: {
+    type: 'value',
+    minInterval: 1,
+    axisLabel: { color: '#64748b', fontSize: 12 },
+    splitLine: { lineStyle: { color: 'rgba(100, 116, 139, 0.16)', type: 'dashed' } }
+  },
+  series: [
+    {
+      name: '标签次数',
+      type: 'bar',
+      barMaxWidth: 42,
+      itemStyle: { borderRadius: [12, 12, 4, 4] },
+      data: tagData.value.map((item) => item.value)
+    }
+  ]
+}))
+
 async function loadSatisfactionPie() {
   loading.value = true
   try {
@@ -303,6 +351,18 @@ async function loadMoodSatisfaction() {
   }
 }
 
+async function loadTagBar() {
+  tagLoading.value = true
+  try {
+    const result = await getTagBar()
+    tagData.value = result.items || []
+  } catch (error) {
+    tagData.value = []
+  } finally {
+    tagLoading.value = false
+  }
+}
+
 function renderChart() {
   if (!chartRef.value || isEmpty.value) {
     chartInstance?.clear()
@@ -332,6 +392,17 @@ function renderTrendChart() {
   trendChartInstance.setOption(trendOptions.value)
 }
 
+function renderTagChart() {
+  if (!tagChartRef.value || isTagEmpty.value) {
+    tagChartInstance?.clear()
+    return
+  }
+  if (!tagChartInstance) {
+    tagChartInstance = init(tagChartRef.value)
+  }
+  tagChartInstance.setOption(tagOptionsConfig.value)
+}
+
 function showYearTrend() {
   selectedMonth.value = ''
   loadTrendLine()
@@ -349,6 +420,7 @@ function yearMonthOptions() {
 function resizeChart() {
   chartInstance?.resize()
   trendChartInstance?.resize()
+  tagChartInstance?.resize()
 }
 
 function goDashboard() {
@@ -378,8 +450,13 @@ watch(trendData, async () => {
   renderTrendChart()
 })
 
+watch(tagData, async () => {
+  await nextTick()
+  renderTagChart()
+})
+
 onMounted(async () => {
-  await Promise.allSettled([loadSatisfactionPie(), loadTrendLine(), loadMoodSatisfaction(), authStore.loadCurrentUser().catch(() => null)])
+  await Promise.allSettled([loadSatisfactionPie(), loadTrendLine(), loadMoodSatisfaction(), loadTagBar(), authStore.loadCurrentUser().catch(() => null)])
   window.addEventListener('resize', resizeChart)
 })
 
@@ -387,8 +464,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeChart)
   chartInstance?.dispose()
   trendChartInstance?.dispose()
+  tagChartInstance?.dispose()
   chartInstance = null
   trendChartInstance = null
+  tagChartInstance = null
 })
 </script>
 
@@ -473,7 +552,8 @@ onBeforeUnmount(() => {
 .card-title h2,
 .placeholder-card h2,
 .trend-title h2,
-.mood-title h2 {
+.mood-title h2,
+.tag-title h2 {
   margin: 6px 0 0;
   color: #171d24;
   font-size: 24px;
@@ -490,7 +570,8 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
-.trend-title {
+.trend-title,
+.tag-title {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -498,14 +579,16 @@ onBeforeUnmount(() => {
 }
 
 .trend-title span,
-.mood-title span {
+.mood-title span,
+.tag-title span {
   color: #ff6f91;
   font-size: 13px;
   font-weight: 900;
 }
 
 .trend-title strong,
-.mood-title strong {
+.mood-title strong,
+.tag-title strong {
   flex: 0 0 auto;
   padding: 7px 10px;
   border-radius: 999px;
@@ -601,6 +684,35 @@ onBeforeUnmount(() => {
 }
 
 .trend-empty p {
+  margin: 8px 0 0;
+  color: #52606d;
+  line-height: 1.6;
+}
+
+.tag-card {
+  min-height: 320px;
+  padding: 20px;
+}
+
+.tag-chart {
+  width: 100%;
+  height: 240px;
+  margin-top: 16px;
+}
+
+.tag-empty {
+  display: grid;
+  min-height: 240px;
+  place-content: center;
+  text-align: center;
+}
+
+.tag-empty strong {
+  color: #171d24;
+  font-size: 18px;
+}
+
+.tag-empty p {
   margin: 8px 0 0;
   color: #52606d;
   line-height: 1.6;

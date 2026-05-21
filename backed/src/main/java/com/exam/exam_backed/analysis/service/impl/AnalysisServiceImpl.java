@@ -5,6 +5,8 @@ import com.exam.exam_backed.analysis.vo.MoodSatisfactionItem;
 import com.exam.exam_backed.analysis.vo.MoodSatisfactionResponse;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieItem;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieResponse;
+import com.exam.exam_backed.analysis.vo.TagBarItem;
+import com.exam.exam_backed.analysis.vo.TagBarResponse;
 import com.exam.exam_backed.analysis.vo.TrendLineResponse;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper.MoodSatisfactionCount;
@@ -15,17 +17,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.regex.Pattern;
 
 @Service
 public class AnalysisServiceImpl implements AnalysisService {
     private static final List<String> SATISFACTION_LABELS = List.of("满意", "一般", "后悔");
     private static final List<String> MOOD_LABELS = List.of("平静", "焦虑", "纠结", "兴奋", "冲动");
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
+    private static final Pattern TAG_SEPARATOR = Pattern.compile("[,，]");
     private final DecisionMapper decisionMapper;
 
     public AnalysisServiceImpl(DecisionMapper decisionMapper) {
@@ -71,6 +77,26 @@ public class AnalysisServiceImpl implements AnalysisService {
                 })
                 .toList();
         return new MoodSatisfactionResponse(items.stream().mapToInt(MoodSatisfactionItem::total).sum(), items);
+    }
+
+    @Override
+    public TagBarResponse tagBar(Long userId) {
+        List<TagBarItem> items = decisionMapper.findTagsByUserId(userId)
+                .stream()
+                .flatMap(tags -> TAG_SEPARATOR.splitAsStream(tags))
+                .map(this::normalizeText)
+                .filter(tag -> tag != null)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.summingInt(tag -> 1)))
+                .entrySet()
+                .stream()
+                .sorted(Comparator
+                        .<Map.Entry<String, Integer>>comparingInt(Map.Entry::getValue)
+                        .reversed()
+                        .thenComparing(Map.Entry::getKey))
+                .map(entry -> new TagBarItem(entry.getKey(), entry.getValue()))
+                .toList();
+        int total = items.stream().mapToInt(TagBarItem::value).sum();
+        return new TagBarResponse(total, items);
     }
 
     private TrendLineResponse monthlyTrend(Long userId, int year) {

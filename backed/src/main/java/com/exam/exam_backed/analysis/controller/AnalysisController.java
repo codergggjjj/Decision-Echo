@@ -3,6 +3,7 @@ package com.exam.exam_backed.analysis.controller;
 import com.exam.exam_backed.analysis.service.AnalysisService;
 import com.exam.exam_backed.analysis.vo.MoodSatisfactionResponse;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieResponse;
+import com.exam.exam_backed.analysis.vo.TagBarResponse;
 import com.exam.exam_backed.analysis.vo.TrendLineResponse;
 import com.exam.exam_backed.auth.service.TokenService;
 import com.exam.exam_backed.common.BusinessException;
@@ -45,6 +46,11 @@ public class AnalysisController {
     @GetMapping("/mood-satisfaction")
     public Result<MoodSatisfactionResponse> moodSatisfaction(HttpServletRequest request) {
         return Result.success(analysisService.moodSatisfaction(currentUserId(request)));
+    }
+
+    @GetMapping("/tag-bar")
+    public Result<TagBarResponse> tagBar(HttpServletRequest request) {
+        return Result.success(analysisService.tagBar(currentUserId(request)));
     }
 
     private Long currentUserId(HttpServletRequest request) {
