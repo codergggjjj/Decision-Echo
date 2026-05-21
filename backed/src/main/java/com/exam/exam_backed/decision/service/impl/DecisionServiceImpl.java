@@ -170,7 +170,8 @@ public class DecisionServiceImpl implements DecisionService {
                 legacyOptions.add(new DecisionOption("legacy_" + i, title, List.of()));
             }
         }
-        return new ParsedOptions(legacyOptions, "");
+        String finalChoice = legacyOptions.isEmpty() ? "" : legacyOptions.get(0).title();
+        return new ParsedOptions(legacyOptions, finalChoice);
     }
 
     private ParsedOptions parseJsonOptions(String rawOptions) {

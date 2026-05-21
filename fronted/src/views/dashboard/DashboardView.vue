@@ -6,12 +6,20 @@
         <p>{{ greeting }}，先看过去留下的记录，再决定要不要补一条新的。</p>
       </div>
       <div class="memory-actions">
-        <button type="button" class="soft-icon-button" @click="loadDashboard">刷新</button>
-        <button type="button" class="avatar-nav-button" aria-label="进入个人主页" @click="goProfile">
-          <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-          <span v-else>{{ avatarInitial }}</span>
-        </button>
-        <button type="button" class="soft-icon-button" @click="handleLogout">退出</button>
+        <nav class="top-view-nav" aria-label="页面切换">
+          <button type="button" class="active" @click="goDashboard">决策记录</button>
+          <button type="button" @click="goAnalysis">图表分析</button>
+        </nav>
+        <div class="avatar-menu">
+          <button type="button" class="avatar-nav-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
+            <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
+            <span v-else>{{ avatarInitial }}</span>
+          </button>
+          <div class="avatar-dropdown">
+            <button type="button" @click="goProfile">个人中心</button>
+            <button type="button" @click="handleLogout">退出登录</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -56,7 +64,7 @@
                 :key="item.value"
                 type="button"
                 :class="{ active: searchForm.status === item.value }"
-                @click="searchForm.status = item.value"
+                @click="selectDecisionStatus(item.value)"
               >
                 {{ item.label }}
               </button>
@@ -91,6 +99,14 @@
               <div class="memory-head">
                 <span :class="['status-pill', statusClass(decision.status)]">{{ statusText(decision.status) }}</span>
                 <i>{{ decision.tags || '未分类' }}</i>
+                <button
+                  v-if="decision.status !== 'reviewed'"
+                  type="button"
+                  class="featured-review"
+                  @click.stop="openReview(decision)"
+                >
+                  现在回看
+                </button>
               </div>
               <h3>{{ decision.title }}</h3>
               <p>{{ decision.context || decision.reason || '这条记录还没有补充更多内容。' }}</p>
@@ -99,7 +115,12 @@
                 <strong>{{ optionSummary(decision.options).selected }}</strong>
               </div>
               <div v-if="optionSummary(decision.options).items.length" class="option-mini-tree">
-                <div v-for="item in optionSummary(decision.options).items" :key="item.id || item.title" class="option-mini-item">
+                <div
+                  v-for="item in optionSummary(decision.options).items"
+                  :key="item.id || item.title"
+                  class="option-mini-item"
+                  :class="{ selected: item.title === optionSummary(decision.options).selected }"
+                >
                   <span>{{ item.title }}</span>
                   <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
                 </div>
@@ -108,7 +129,6 @@
                 <span>回看时间 {{ formatDate(decision.reviewTime) }}</span>
                 <div class="memory-foot-actions">
                   <button type="button" class="inline-detail" @click.stop="openDetail(decision)">查看详情</button>
-                  <button v-if="decision.status !== 'reviewed'" type="button" class="inline-review" @click.stop="openReview(decision)">现在回看</button>
                   <button type="button" class="inline-delete" :disabled="deletingDecisionId === decision.id" @click.stop="confirmDelete(decision)">删除</button>
                 </div>
               </div>
@@ -498,6 +518,11 @@ async function executeDecisionSearch() {
   }
 }
 
+async function selectDecisionStatus(status) {
+  searchForm.status = status
+  await executeDecisionSearch()
+}
+
 async function resetDecisionSearch() {
   searchForm.keyword = ''
   searchForm.tag = ''
@@ -521,6 +546,14 @@ async function handleLogout() {
 
 function goProfile() {
   router.push('/profile')
+}
+
+function goDashboard() {
+  router.push('/dashboard')
+}
+
+function goAnalysis() {
+  router.push('/analysis')
 }
 
 function openCreateDialog() {
@@ -735,7 +768,7 @@ function optionSummary(rawOptions) {
     .map((item) => item.trim())
     .filter(Boolean)
     .map((title, index) => ({ id: `legacy_${index}`, title, children: [] }))
-  return { selected: '', items }
+  return { selected: items[0]?.title || '', items }
 }
 
 onMounted(async () => {

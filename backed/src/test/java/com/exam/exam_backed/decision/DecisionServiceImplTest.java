@@ -250,7 +250,7 @@ class DecisionServiceImplTest {
 
         var detail = decisionService.detail(7L, 1L);
 
-        assertEquals("", detail.finalChoice());
+        assertEquals("报名", detail.finalChoice());
         assertEquals(2, detail.options().size());
         assertEquals("报名", detail.options().get(0).title());
         assertEquals("自学", detail.options().get(1).title());

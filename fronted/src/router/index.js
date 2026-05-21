@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth'
 import LoginView from '../views/login/LoginView.vue'
 import DashboardView from '../views/dashboard/DashboardView.vue'
 import ProfileView from '../views/profile/ProfileView.vue'
+import AnalysisView from '../views/analysis/AnalysisView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,7 +11,8 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/login', component: LoginView },
     { path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
-    { path: '/profile', component: ProfileView, meta: { requiresAuth: true } }
+    { path: '/profile', component: ProfileView, meta: { requiresAuth: true } },
+    { path: '/analysis', component: AnalysisView, meta: { requiresAuth: true } }
   ]
 })
 
