@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -105,6 +106,64 @@ public interface DecisionMapper {
               AND satisfaction = #{satisfaction}
             """)
     int countReviewedBySatisfaction(@Param("userId") Long userId, @Param("satisfaction") String satisfaction);
+
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+            FROM decision
+            WHERE user_id = #{userId}
+              AND deleted = 0
+              AND status = 'reviewed'
+              AND satisfaction = #{satisfaction}
+            <if test="tag != null and tag != ''">
+              AND tags LIKE CONCAT('%', #{tag}, '%')
+            </if>
+            <if test="mood != null and mood != ''">
+              AND mood = #{mood}
+            </if>
+            </script>
+            """)
+    int countReviewedBySatisfactionAndFilters(
+            @Param("userId") Long userId,
+            @Param("satisfaction") String satisfaction,
+            @Param("tag") String tag,
+            @Param("mood") String mood
+    );
+
+    @Select("""
+            SELECT DATE_FORMAT(create_time, '%Y-%m') AS label, COUNT(*) AS count
+            FROM decision
+            WHERE user_id = #{userId}
+              AND deleted = 0
+              AND create_time >= #{start}
+              AND create_time < #{end}
+            GROUP BY DATE_FORMAT(create_time, '%Y-%m')
+            ORDER BY label ASC
+            """)
+    List<TrendCount> countCreatedByMonth(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Select("""
+            SELECT DATE_FORMAT(create_time, '%d') AS label, COUNT(*) AS count
+            FROM decision
+            WHERE user_id = #{userId}
+              AND deleted = 0
+              AND create_time >= #{start}
+              AND create_time < #{end}
+            GROUP BY DATE_FORMAT(create_time, '%d')
+            ORDER BY label ASC
+            """)
+    List<TrendCount> countCreatedByDay(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    record TrendCount(String label, int count) {
+    }
 
     @Update("""
             UPDATE decision
