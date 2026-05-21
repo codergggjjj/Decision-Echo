@@ -1,6 +1,7 @@
 package com.exam.exam_backed.decision;
 
 import com.exam.exam_backed.common.BusinessException;
+import com.exam.exam_backed.analysis.service.impl.AnalysisServiceImpl;
 import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
@@ -10,9 +11,11 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -75,6 +78,126 @@ class DecisionServiceImplTest {
         assertEquals(1, summary.pending());
         assertEquals(1, summary.reviewed());
         assertEquals(1, summary.satisfaction().get("满意"));
+    }
+
+    @Test
+    void satisfactionPieFiltersReviewedResultsByTagAndMood() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习,工作", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.minusDays(1), "一般", "还行", "reviewed", now, now));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "学习", "焦虑", 2,
+                now.minusDays(1), "后悔", "不合适", "reviewed", now, now));
+        decisionMapper.seed(new Decision(4L, 7L, "D", "ctx", "a,b", "reason", "消费", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(5L, 8L, "E", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(6L, 7L, "F", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now.plusDays(1), null, null, "pending", now, now));
+
+        var pie = analysisService.satisfactionPie(7L, " 学习 ", " 平静 ");
+
+        assertEquals(2, pie.total());
+        assertEquals("满意", pie.items().get(0).name());
+        assertEquals(1, pie.items().get(0).value());
+        assertEquals("一般", pie.items().get(1).name());
+        assertEquals(1, pie.items().get(1).value());
+        assertEquals("后悔", pie.items().get(2).name());
+        assertEquals(0, pie.items().get(2).value());
+    }
+
+    @Test
+    void trendLineCountsCurrentUserDecisionsByCreateMonth() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                LocalDateTime.of(2026, 1, 8, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 3, 10, 0), LocalDateTime.of(2026, 1, 3, 10, 0)));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "工作", "纠结", 2,
+                LocalDateTime.of(2026, 1, 9, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 20, 10, 0), LocalDateTime.of(2026, 1, 20, 10, 0)));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "生活", "平静", 2,
+                LocalDateTime.of(2026, 2, 2, 10, 0), "满意", "不错", "reviewed",
+                LocalDateTime.of(2026, 2, 1, 10, 0), LocalDateTime.of(2026, 2, 1, 10, 0)));
+        decisionMapper.seed(new Decision(4L, 8L, "D", "ctx", "a,b", "reason", "学习", "平静", 2,
+                LocalDateTime.of(2026, 1, 8, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 5, 10, 0), LocalDateTime.of(2026, 1, 5, 10, 0)));
+        decisionMapper.seed(new Decision(5L, 7L, "E", "ctx", "a,b", "reason", "消费", "冲动", 2,
+                LocalDateTime.of(2026, 3, 8, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 3, 1, 10, 0), LocalDateTime.of(2026, 3, 1, 10, 0)));
+        decisionMapper.deletedDecisionIds.add(5L);
+
+        var trend = analysisService.trendLine(7L, null);
+
+        assertEquals(3, trend.total());
+        assertEquals("month", trend.granularity());
+        assertEquals("2026-01", trend.labels().get(0));
+        assertEquals("2026-12", trend.labels().get(11));
+        assertEquals(12, trend.labels().size());
+        assertEquals(2, trend.counts().get(0));
+        assertEquals(1, trend.counts().get(1));
+        assertEquals(0, trend.counts().get(2));
+    }
+
+    @Test
+    void trendLineCountsCurrentUserDecisionsByDayWhenMonthSelected() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                LocalDateTime.of(2026, 1, 8, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 3, 10, 0), LocalDateTime.of(2026, 1, 3, 10, 0)));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "工作", "纠结", 2,
+                LocalDateTime.of(2026, 1, 9, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 3, 15, 0), LocalDateTime.of(2026, 1, 3, 15, 0)));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "生活", "平静", 2,
+                LocalDateTime.of(2026, 1, 16, 10, 0), "满意", "不错", "reviewed",
+                LocalDateTime.of(2026, 1, 15, 10, 0), LocalDateTime.of(2026, 1, 15, 10, 0)));
+        decisionMapper.seed(new Decision(4L, 8L, "D", "ctx", "a,b", "reason", "学习", "平静", 2,
+                LocalDateTime.of(2026, 1, 8, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 1, 3, 10, 0), LocalDateTime.of(2026, 1, 3, 10, 0)));
+        decisionMapper.seed(new Decision(5L, 7L, "E", "ctx", "a,b", "reason", "消费", "冲动", 2,
+                LocalDateTime.of(2026, 2, 1, 10, 0), null, null, "pending",
+                LocalDateTime.of(2026, 2, 1, 10, 0), LocalDateTime.of(2026, 2, 1, 10, 0)));
+
+        var trend = analysisService.trendLine(7L, "2026-01");
+
+        assertEquals(3, trend.total());
+        assertEquals("day", trend.granularity());
+        assertEquals("2026-01", trend.selectedMonth());
+        assertEquals(31, trend.labels().size());
+        assertEquals("01日", trend.labels().get(0));
+        assertEquals("31日", trend.labels().get(30));
+        assertEquals(2, trend.counts().get(2));
+        assertEquals(1, trend.counts().get(14));
+    }
+
+    @Test
+    void tagBarCountsCurrentUserTags() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习,工作", "平静", 2,
+                now, null, null, "pending", now, now));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "学习，生活", "纠结", 2,
+                now, "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "消费", "冲动", 2,
+                now, null, null, "pending", now, now));
+        decisionMapper.seed(new Decision(4L, 8L, "D", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now, null, null, "pending", now, now));
+        decisionMapper.seed(new Decision(5L, 7L, "E", "ctx", "a,b", "reason", "健康", "平静", 2,
+                now, null, null, "pending", now, now));
+        decisionMapper.deletedDecisionIds.add(5L);
+
+        var tagBar = analysisService.tagBar(7L);
+
+        assertEquals(5, tagBar.total());
+        assertEquals("学习", tagBar.items().get(0).name());
+        assertEquals(2, tagBar.items().get(0).value());
+        assertEquals("工作", tagBar.items().get(1).name());
+        assertEquals(1, tagBar.items().get(1).value());
+        assertEquals("消费", tagBar.items().get(2).name());
+        assertEquals(1, tagBar.items().get(2).value());
+        assertEquals("生活", tagBar.items().get(3).name());
+        assertEquals(1, tagBar.items().get(3).value());
     }
 
     @Test
@@ -393,6 +516,74 @@ class DecisionServiceImplTest {
                 }
             }
             return total;
+        }
+
+        @Override
+        public int countReviewedBySatisfactionAndFilters(Long userId, String satisfactionLabel, String tag, String mood) {
+            int total = 0;
+            for (Decision decision : decisions) {
+                if (!decision.userId().equals(userId)) {
+                    continue;
+                }
+                if (deletedDecisionIds.contains(decision.id())) {
+                    continue;
+                }
+                if (!"reviewed".equals(decision.status()) || !satisfactionLabel.equals(decision.satisfaction())) {
+                    continue;
+                }
+                if (tag != null && (decision.tags() == null || !decision.tags().contains(tag))) {
+                    continue;
+                }
+                if (mood != null && !mood.equals(decision.mood())) {
+                    continue;
+                }
+                total++;
+            }
+            return total;
+        }
+
+        @Override
+        public List<TrendCount> countCreatedByMonth(Long userId, LocalDateTime start, LocalDateTime end) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .filter(decision -> !decision.createTime().isBefore(start) && decision.createTime().isBefore(end))
+                    .collect(Collectors.groupingBy(
+                            decision -> "%04d-%02d".formatted(decision.createTime().getYear(), decision.createTime().getMonthValue()),
+                            Collectors.summingInt(decision -> 1)
+                    ))
+                    .entrySet()
+                    .stream()
+                    .sorted(Comparator.comparing(entry -> entry.getKey()))
+                    .map(entry -> new TrendCount(entry.getKey(), entry.getValue()))
+                    .toList();
+        }
+
+        @Override
+        public List<TrendCount> countCreatedByDay(Long userId, LocalDateTime start, LocalDateTime end) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .filter(decision -> !decision.createTime().isBefore(start) && decision.createTime().isBefore(end))
+                    .collect(Collectors.groupingBy(
+                            decision -> "%02d".formatted(decision.createTime().getDayOfMonth()),
+                            Collectors.summingInt(decision -> 1)
+                    ))
+                    .entrySet()
+                    .stream()
+                    .sorted(Comparator.comparing(entry -> entry.getKey()))
+                    .map(entry -> new TrendCount(entry.getKey(), entry.getValue()))
+                    .toList();
+        }
+
+        @Override
+        public List<String> findTagsByUserId(Long userId) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .map(Decision::tags)
+                    .filter(tags -> tags != null && !tags.isBlank())
+                    .toList();
         }
 
         @Override

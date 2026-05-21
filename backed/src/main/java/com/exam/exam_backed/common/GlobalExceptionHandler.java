@@ -6,6 +6,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,6 +22,12 @@ public class GlobalExceptionHandler {
         FieldError fieldError = exception.getBindingResult().getFieldError();
         String message = fieldError == null ? "参数错误" : fieldError.getDefaultMessage();
         return Result.fail(ErrorCode.PARAM_ERROR, message);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResourceFoundException(NoResourceFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Result.fail(HttpStatus.NOT_FOUND.value(), "接口不存在"));
     }
 
     @ExceptionHandler(Exception.class)

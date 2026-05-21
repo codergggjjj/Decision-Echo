@@ -7,6 +7,9 @@ export const API_PATHS = {
   avatar: '/api/auth/avatar',
   changePassword: '/api/auth/password',
   logout: '/api/auth/logout',
+  analysisSatisfactionPie: '/api/analysis/satisfaction-pie',
+  analysisTrendLine: '/api/analysis/trend-line',
+  analysisTagBar: '/api/analysis/tag-bar',
   decisionDashboard: '/api/decisions/dashboard',
   decisions: '/api/decisions'
 }
