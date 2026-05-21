@@ -71,6 +71,32 @@
         <div v-show="!isTrendEmpty" ref="trendChartRef" class="trend-chart" aria-label="每月创建决策数量折线图"></div>
       </article>
 
+      <article class="analysis-card mood-card" v-loading="moodLoading">
+        <div class="mood-title">
+          <div>
+            <span>情绪关联</span>
+            <h2>情绪满意度图</h2>
+          </div>
+          <strong>{{ moodTotal }} 条</strong>
+        </div>
+        <div v-if="moodTotal === 0" class="mood-empty">
+          <strong>暂无情绪回测结果</strong>
+          <p>完成带有心情和满意度的回测后，这里会展示关联分布。</p>
+        </div>
+        <div v-else class="mood-bars" aria-label="情绪满意度统计">
+          <div v-for="row in moodSatisfactionRows" :key="row.mood" class="mood-bar-row">
+            <strong class="mood-name">{{ row.mood }}</strong>
+            <div class="mood-result-list">
+              <div v-for="item in row.items" :key="item.label" class="mood-result" :class="`tone-${item.key}`">
+                <span>{{ item.label }}</span>
+                <i :style="{ '--bar-width': item.width }"></i>
+                <em>{{ item.value }}</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
       <article v-for="item in placeholderCards" :key="item.title" class="analysis-card placeholder-card">
         <div class="placeholder-icon">{{ item.icon }}</div>
         <div>
@@ -90,7 +116,7 @@ import { init, use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getSatisfactionPie, getTrendLine } from '../../api/analysis'
+import { getMoodSatisfaction, getSatisfactionPie, getTrendLine } from '../../api/analysis'
 import { useAuthStore } from '../../store/auth'
 
 use([PieChart, LineChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
@@ -101,8 +127,10 @@ const chartRef = ref(null)
 const trendChartRef = ref(null)
 const loading = ref(false)
 const trendLoading = ref(false)
+const moodLoading = ref(false)
 const pieData = ref([])
 const trendData = ref({ labels: [], counts: [], granularity: 'month', selectedMonth: '' })
+const moodData = ref({ total: 0, items: [] })
 const filters = ref({
   tag: '',
   mood: ''
@@ -114,13 +142,18 @@ let trendChartInstance = null
 const tagOptions = ['学习', '消费', '工作', '生活', '健康']
 const moodOptions = ['平静', '焦虑', '纠结', '兴奋', '冲动']
 const placeholderCards = [
-  { kicker: '标签偏好', title: '标签分布图', icon: '#' },
-  { kicker: '情绪关联', title: '情绪满意度图', icon: '♡' }
+  { kicker: '标签偏好', title: '标签分布图', icon: '#' }
+]
+const satisfactionOptions = [
+  { label: '满意', key: 'good' },
+  { label: '一般', key: 'normal' },
+  { label: '后悔', key: 'bad' }
 ]
 
 const total = computed(() => pieData.value.reduce((sum, item) => sum + item.value, 0))
 const isEmpty = computed(() => total.value === 0)
 const trendTotal = computed(() => trendData.value.counts.reduce((sum, value) => sum + value, 0))
+const moodTotal = computed(() => moodData.value.total || 0)
 const isTrendEmpty = computed(() => trendTotal.value === 0)
 const trendMode = computed(() => trendData.value.granularity === 'day' ? 'month' : 'year')
 const trendTitle = computed(() => trendMode.value === 'month' ? `${trendData.value.selectedMonth} 每日趋势` : '趋势折线图')
@@ -129,6 +162,23 @@ const monthOptions = computed(() => trendData.value.granularity === 'month' ? tr
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '朋友')
 const avatarUrl = computed(() => authStore.user?.avatarUrl || '')
 const avatarInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
+const moodSatisfactionRows = computed(() => {
+  const max = Math.max(
+    ...moodData.value.items.flatMap((row) => satisfactionOptions.map((item) => row.satisfaction?.[item.label] || 0)),
+    1
+  )
+  return moodData.value.items.map((row) => ({
+    mood: row.mood,
+    items: satisfactionOptions.map((item) => {
+      const value = row.satisfaction?.[item.label] || 0
+      return {
+        ...item,
+        value,
+        width: `${Math.max(value === 0 ? 0 : 14, Math.round((value / max) * 100))}%`
+      }
+    })
+  }))
+})
 
 const chartOptions = computed(() => ({
   color: ['#69d9b4', '#ffd166', '#ff8ba7'],
@@ -242,6 +292,17 @@ async function loadTrendLine() {
   }
 }
 
+async function loadMoodSatisfaction() {
+  moodLoading.value = true
+  try {
+    moodData.value = await getMoodSatisfaction()
+  } catch (error) {
+    moodData.value = { total: 0, items: [] }
+  } finally {
+    moodLoading.value = false
+  }
+}
+
 function renderChart() {
   if (!chartRef.value || isEmpty.value) {
     chartInstance?.clear()
@@ -318,7 +379,7 @@ watch(trendData, async () => {
 })
 
 onMounted(async () => {
-  await Promise.allSettled([loadSatisfactionPie(), loadTrendLine(), authStore.loadCurrentUser().catch(() => null)])
+  await Promise.allSettled([loadSatisfactionPie(), loadTrendLine(), loadMoodSatisfaction(), authStore.loadCurrentUser().catch(() => null)])
   window.addEventListener('resize', resizeChart)
 })
 
@@ -411,7 +472,8 @@ onBeforeUnmount(() => {
 
 .card-title h2,
 .placeholder-card h2,
-.trend-title h2 {
+.trend-title h2,
+.mood-title h2 {
   margin: 6px 0 0;
   color: #171d24;
   font-size: 24px;
@@ -435,13 +497,15 @@ onBeforeUnmount(() => {
   align-items: flex-start;
 }
 
-.trend-title span {
+.trend-title span,
+.mood-title span {
   color: #ff6f91;
   font-size: 13px;
   font-weight: 900;
 }
 
-.trend-title strong {
+.trend-title strong,
+.mood-title strong {
   flex: 0 0 auto;
   padding: 7px 10px;
   border-radius: 999px;
@@ -542,6 +606,110 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
+.mood-card {
+  min-height: 320px;
+  padding: 20px;
+}
+
+.mood-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.mood-bars {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.mood-bar-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(23, 29, 36, 0.06);
+  border-radius: 18px;
+  background: rgba(247, 251, 255, 0.82);
+}
+
+.mood-name {
+  color: #171d24;
+  font-size: 15px;
+}
+
+.mood-result-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mood-result {
+  display: grid;
+  grid-template-columns: 34px minmax(46px, 1fr) 22px;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mood-result i {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 29, 36, 0.06);
+}
+
+.mood-result i::before {
+  display: block;
+  width: var(--bar-width);
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  content: "";
+}
+
+.mood-result.tone-good i::before {
+  background: #69d9b4;
+}
+
+.mood-result.tone-normal i::before {
+  background: #ffd166;
+}
+
+.mood-result.tone-bad i::before {
+  background: #ff8ba7;
+}
+
+.mood-result em {
+  color: #171d24;
+  font-style: normal;
+  text-align: right;
+}
+
+.mood-empty {
+  display: grid;
+  min-height: 220px;
+  place-content: center;
+  text-align: center;
+}
+
+.mood-empty strong {
+  color: #171d24;
+  font-size: 18px;
+}
+
+.mood-empty p {
+  margin: 8px 0 0;
+  color: #52606d;
+  line-height: 1.6;
+}
+
 .placeholder-card {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -592,6 +760,15 @@ onBeforeUnmount(() => {
 
   .trend-controls {
     grid-template-columns: 1fr;
+  }
+
+  .mood-bar-row,
+  .mood-result-list {
+    grid-template-columns: 1fr;
+  }
+
+  .mood-result {
+    grid-template-columns: 34px minmax(0, 1fr) 22px;
   }
 
   .pie-chart {

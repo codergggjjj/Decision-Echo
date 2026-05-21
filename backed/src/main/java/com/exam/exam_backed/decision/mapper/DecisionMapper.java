@@ -131,6 +131,20 @@ public interface DecisionMapper {
     );
 
     @Select("""
+            SELECT mood, satisfaction, COUNT(*) AS count
+            FROM decision
+            WHERE user_id = #{userId}
+              AND deleted = 0
+              AND status = 'reviewed'
+              AND mood IS NOT NULL
+              AND mood <> ''
+              AND satisfaction IS NOT NULL
+              AND satisfaction <> ''
+            GROUP BY mood, satisfaction
+            """)
+    List<MoodSatisfactionCount> countReviewedByMoodAndSatisfaction(@Param("userId") Long userId);
+
+    @Select("""
             SELECT DATE_FORMAT(create_time, '%Y-%m') AS label, COUNT(*) AS count
             FROM decision
             WHERE user_id = #{userId}
@@ -163,6 +177,9 @@ public interface DecisionMapper {
     );
 
     record TrendCount(String label, int count) {
+    }
+
+    record MoodSatisfactionCount(String mood, String satisfaction, int count) {
     }
 
     @Update("""

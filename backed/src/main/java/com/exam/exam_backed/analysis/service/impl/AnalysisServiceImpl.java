@@ -1,10 +1,13 @@
 package com.exam.exam_backed.analysis.service.impl;
 
 import com.exam.exam_backed.analysis.service.AnalysisService;
+import com.exam.exam_backed.analysis.vo.MoodSatisfactionItem;
+import com.exam.exam_backed.analysis.vo.MoodSatisfactionResponse;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieItem;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieResponse;
 import com.exam.exam_backed.analysis.vo.TrendLineResponse;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
+import com.exam.exam_backed.decision.mapper.DecisionMapper.MoodSatisfactionCount;
 import com.exam.exam_backed.decision.mapper.DecisionMapper.TrendCount;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +16,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -20,6 +24,7 @@ import java.util.stream.IntStream;
 @Service
 public class AnalysisServiceImpl implements AnalysisService {
     private static final List<String> SATISFACTION_LABELS = List.of("满意", "一般", "后悔");
+    private static final List<String> MOOD_LABELS = List.of("平静", "焦虑", "纠结", "兴奋", "冲动");
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
     private final DecisionMapper decisionMapper;
 
@@ -48,6 +53,24 @@ public class AnalysisServiceImpl implements AnalysisService {
             return dailyTrend(userId, YearMonth.parse(normalizedMonth, MONTH_FORMATTER));
         }
         return monthlyTrend(userId, LocalDate.now().getYear());
+    }
+
+    @Override
+    public MoodSatisfactionResponse moodSatisfaction(Long userId) {
+        Map<String, Map<String, Integer>> countMap = decisionMapper.countReviewedByMoodAndSatisfaction(userId)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        MoodSatisfactionCount::mood,
+                        Collectors.toMap(MoodSatisfactionCount::satisfaction, MoodSatisfactionCount::count, Integer::sum)
+                ));
+        List<MoodSatisfactionItem> items = MOOD_LABELS.stream()
+                .map(mood -> {
+                    Map<String, Integer> satisfaction = new LinkedHashMap<>();
+                    SATISFACTION_LABELS.forEach(label -> satisfaction.put(label, countMap.getOrDefault(mood, Map.of()).getOrDefault(label, 0)));
+                    return new MoodSatisfactionItem(mood, sum(satisfaction.values().stream().toList()), satisfaction);
+                })
+                .toList();
+        return new MoodSatisfactionResponse(items.stream().mapToInt(MoodSatisfactionItem::total).sum(), items);
     }
 
     private TrendLineResponse monthlyTrend(Long userId, int year) {

@@ -109,6 +109,34 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void moodSatisfactionReturnsFixedMoodRowsWithReviewedCounts() {
+        AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "平静", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(2L, 7L, "B", "ctx", "a,b", "reason", "平静", "平静", 2,
+                now.minusDays(1), "满意", "不错", "reviewed", now, now));
+        decisionMapper.seed(new Decision(3L, 7L, "C", "ctx", "a,b", "reason", "焦虑", "焦虑", 2,
+                now.minusDays(1), "一般", "还行", "reviewed", now, now));
+        decisionMapper.seed(new Decision(4L, 7L, "D", "ctx", "a,b", "reason", "纠结", "纠结", 2,
+                now.minusDays(1), "后悔", "不合适", "reviewed", now, now));
+        decisionMapper.seed(new Decision(5L, 7L, "E", "ctx", "a,b", "reason", "冲动", "冲动", 2,
+                now.plusDays(1), null, null, "pending", now, now));
+        decisionMapper.seed(new Decision(6L, 8L, "F", "ctx", "a,b", "reason", "平静", "平静", 2,
+                now.minusDays(1), "后悔", "不合适", "reviewed", now, now));
+
+        var result = analysisService.moodSatisfaction(7L);
+
+        assertEquals(4, result.total());
+        assertEquals("平静", result.items().get(0).mood());
+        assertEquals(2, result.items().get(0).satisfaction().get("满意"));
+        assertEquals(0, result.items().get(0).satisfaction().get("一般"));
+        assertEquals("兴奋", result.items().get(3).mood());
+        assertEquals(0, result.items().get(3).total());
+        assertEquals(0, result.items().get(4).satisfaction().get("后悔"));
+    }
+
+    @Test
     void trendLineCountsCurrentUserDecisionsByCreateMonth() {
         AnalysisServiceImpl analysisService = new AnalysisServiceImpl(decisionMapper);
         decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
@@ -511,6 +539,27 @@ class DecisionServiceImplTest {
                 total++;
             }
             return total;
+        }
+
+        @Override
+        public List<MoodSatisfactionCount> countReviewedByMoodAndSatisfaction(Long userId) {
+            return decisions.stream()
+                    .filter(decision -> decision.userId().equals(userId))
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .filter(decision -> "reviewed".equals(decision.status()))
+                    .filter(decision -> decision.mood() != null && !decision.mood().isBlank())
+                    .filter(decision -> decision.satisfaction() != null && !decision.satisfaction().isBlank())
+                    .collect(Collectors.groupingBy(
+                            decision -> decision.mood() + "\u0000" + decision.satisfaction(),
+                            Collectors.summingInt(decision -> 1)
+                    ))
+                    .entrySet()
+                    .stream()
+                    .map(entry -> {
+                        String[] labels = entry.getKey().split("\u0000", 2);
+                        return new MoodSatisfactionCount(labels[0], labels[1], entry.getValue());
+                    })
+                    .toList();
         }
 
         @Override

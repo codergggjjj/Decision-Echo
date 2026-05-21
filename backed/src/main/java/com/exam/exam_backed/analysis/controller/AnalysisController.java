@@ -1,6 +1,7 @@
 package com.exam.exam_backed.analysis.controller;
 
 import com.exam.exam_backed.analysis.service.AnalysisService;
+import com.exam.exam_backed.analysis.vo.MoodSatisfactionResponse;
 import com.exam.exam_backed.analysis.vo.SatisfactionPieResponse;
 import com.exam.exam_backed.analysis.vo.TrendLineResponse;
 import com.exam.exam_backed.auth.service.TokenService;
@@ -39,6 +40,11 @@ public class AnalysisController {
             @RequestParam(required = false) String month
     ) {
         return Result.success(analysisService.trendLine(currentUserId(request), month));
+    }
+
+    @GetMapping("/mood-satisfaction")
+    public Result<MoodSatisfactionResponse> moodSatisfaction(HttpServletRequest request) {
+        return Result.success(analysisService.moodSatisfaction(currentUserId(request)));
     }
 
     private Long currentUserId(HttpServletRequest request) {

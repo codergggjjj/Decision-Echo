@@ -8,3 +8,7 @@ export function getSatisfactionPie(params) {
 export function getTrendLine(params) {
   return request.get(API_PATHS.analysisTrendLine, { params })
 }
+
+export function getMoodSatisfaction() {
+  return request.get(API_PATHS.analysisMoodSatisfaction)
+}
