@@ -13,7 +13,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusinessException(BusinessException exception) {
-        HttpStatus status = exception.getCode() == ErrorCode.UNAUTHORIZED ? HttpStatus.UNAUTHORIZED : HttpStatus.OK;
+        HttpStatus status = switch (exception.getCode()) {
+            case ErrorCode.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
+            case ErrorCode.FORBIDDEN -> HttpStatus.FORBIDDEN;
+            default -> HttpStatus.OK;
+        };
         return ResponseEntity.status(status).body(Result.fail(exception.getCode(), exception.getMessage()));
     }
 

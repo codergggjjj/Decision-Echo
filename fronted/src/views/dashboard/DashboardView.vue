@@ -402,6 +402,43 @@
           <small v-if="decisionDetail.feedback" class="detail-feedback">{{ decisionDetail.feedback }}</small>
         </section>
 
+        <section class="ai-advice-card detail-ai-advice-card">
+          <div>
+            <span>AI 复盘建议</span>
+            <p>基于这条决策的背景和候选方案，生成一份利弊分析。</p>
+          </div>
+          <el-button
+            v-if="!detailAdviceResult"
+            :loading="detailAdviceLoading"
+            class="primary-action ai-advice-button"
+            type="primary"
+            @click="handleGenerateDetailAdvice"
+          >
+            生成 AI 建议
+          </el-button>
+          <p v-if="detailAdviceError" class="ai-advice-error">{{ detailAdviceError }}</p>
+          <div v-if="detailAdviceResult" class="ai-advice-result">
+            <p class="ai-advice-overall">{{ detailAdviceResult.summary || '暂无决策概括' }}</p>
+            <div class="ai-review-advice-grid">
+              <section>
+                <span>影响因素</span>
+                <p>{{ detailAdviceResult.factors || '暂无' }}</p>
+              </section>
+              <section>
+                <span>风险问题</span>
+                <p>{{ detailAdviceResult.risks || '暂无' }}</p>
+              </section>
+            </div>
+            <section class="ai-review-improvements">
+              <span>改进建议</span>
+              <ul>
+                <li v-for="item in adviceItems(detailAdviceResult.improvements)" :key="item">{{ item }}</li>
+              </ul>
+            </section>
+            <p class="ai-advice-reminder">{{ detailAdviceResult.nextReminder || '下次遇到类似决策时，可以先检查关键信息是否充分。' }}</p>
+          </div>
+        </section>
+
       </div>
     </el-dialog>
 
@@ -458,6 +495,43 @@
             </el-select>
           </el-form-item>
         </el-form>
+
+        <section class="ai-advice-card review-ai-advice-card">
+          <div>
+            <span>AI 回测建议</span>
+            <p>回看前可以重新分析当时的候选方案，辅助整理复盘思路。</p>
+          </div>
+          <el-button
+            v-if="!reviewAdviceResult"
+            :loading="reviewAdviceLoading"
+            class="primary-action ai-advice-button"
+            type="primary"
+            @click="handleGenerateReviewAdvice"
+          >
+            生成 AI 建议
+          </el-button>
+          <p v-if="reviewAdviceError" class="ai-advice-error">{{ reviewAdviceError }}</p>
+          <div v-if="reviewAdviceResult" class="ai-advice-result">
+            <p class="ai-advice-overall">{{ reviewAdviceResult.summary || '暂无决策概括' }}</p>
+            <div class="ai-review-advice-grid">
+              <section>
+                <span>影响因素</span>
+                <p>{{ reviewAdviceResult.factors || '暂无' }}</p>
+              </section>
+              <section>
+                <span>风险问题</span>
+                <p>{{ reviewAdviceResult.risks || '暂无' }}</p>
+              </section>
+            </div>
+            <section class="ai-review-improvements">
+              <span>改进建议</span>
+              <ul>
+                <li v-for="item in adviceItems(reviewAdviceResult.improvements)" :key="item">{{ item }}</li>
+              </ul>
+            </section>
+            <p class="ai-advice-reminder">{{ reviewAdviceResult.nextReminder || '下次遇到类似决策时，可以先检查关键信息是否充分。' }}</p>
+          </div>
+        </section>
       </div>
       <template #footer>
         <div class="review-dialog-footer">
@@ -487,6 +561,8 @@ const isSearching = ref(false)
 const isSearchMode = ref(false)
 const detailLoading = ref(false)
 const createAdviceLoading = ref(false)
+const detailAdviceLoading = ref(false)
+const reviewAdviceLoading = ref(false)
 const deletingDecisionId = ref(null)
 const createDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
@@ -494,7 +570,11 @@ const reviewDialogVisible = ref(false)
 const activeDecision = ref(null)
 const decisionDetail = ref(null)
 const createAdviceResult = ref(null)
+const detailAdviceResult = ref(null)
+const reviewAdviceResult = ref(null)
 const createAdviceError = ref('')
+const detailAdviceError = ref('')
+const reviewAdviceError = ref('')
 const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} }, recent: [], pendingReview: [] })
 const searchResults = ref([])
 const decisionPage = ref(1)
@@ -682,10 +762,31 @@ async function openDetail(decision) {
   detailDialogVisible.value = true
   detailLoading.value = true
   decisionDetail.value = null
+  detailAdviceResult.value = null
+  detailAdviceError.value = ''
   try {
     decisionDetail.value = await getDecisionDetail(decision.id)
   } finally {
     detailLoading.value = false
+  }
+}
+
+async function handleGenerateDetailAdvice() {
+  if (!decisionDetail.value) {
+    return
+  }
+  detailAdviceLoading.value = true
+  detailAdviceError.value = ''
+  try {
+    const data = await generateDecisionAdvice(buildAdvicePayload(decisionDetail.value, {
+      satisfaction: decisionDetail.value.satisfaction || '',
+      feedback: decisionDetail.value.feedback || ''
+    }))
+    detailAdviceResult.value = normalizeAdviceResult(data)
+  } catch (error) {
+    detailAdviceError.value = 'AI 建议生成失败，请稍后重试。'
+  } finally {
+    detailAdviceLoading.value = false
   }
 }
 
@@ -697,7 +798,7 @@ async function handleGenerateCreateAdvice() {
   createAdviceLoading.value = true
   createAdviceError.value = ''
   try {
-    const data = await generateDecisionAdvice({ ...createForm, context: createForm.context || '', options: buildOptionsPayload() })
+    const data = await generateDecisionAdvice({ ...createForm, mode: 'create', context: createForm.context || '', options: buildOptionsPayload() })
     createAdviceResult.value = normalizeAdviceResult(data)
   } catch (error) {
     createAdviceError.value = 'AI 建议生成失败，请稍后重试。'
@@ -730,6 +831,8 @@ function openReview(decision) {
   reviewForm.satisfaction = '满意'
   reviewForm.feedback = ''
   reviewForm.betterChoice = ''
+  reviewAdviceResult.value = null
+  reviewAdviceError.value = ''
   reviewDialogVisible.value = true
 }
 
@@ -778,6 +881,25 @@ async function submitReview() {
     await refreshDecisionData()
   } finally {
     reviewing.value = false
+  }
+}
+
+async function handleGenerateReviewAdvice() {
+  if (!activeDecision.value) {
+    return
+  }
+  reviewAdviceLoading.value = true
+  reviewAdviceError.value = ''
+  try {
+    const data = await generateDecisionAdvice(buildAdvicePayload(activeDecision.value, {
+      satisfaction: reviewForm.satisfaction,
+      feedback: reviewForm.feedback
+    }))
+    reviewAdviceResult.value = normalizeAdviceResult(data)
+  } catch (error) {
+    reviewAdviceError.value = 'AI 建议生成失败，请稍后重试。'
+  } finally {
+    reviewAdviceLoading.value = false
   }
 }
 
@@ -923,6 +1045,68 @@ function optionSummary(rawOptions) {
 
 function adviceItems(items) {
   return Array.isArray(items) && items.length > 0 ? items : ['暂无']
+}
+
+function buildAdvicePayload(decision, reviewInfo = {}) {
+  const summary = optionSummary(decision.options)
+  return {
+    mode: 'review',
+    title: decision.title || '未填写标题',
+    context: decision.context || '',
+    reason: decision.reason || '未填写选择原因',
+    tags: decision.tags || '',
+    mood: decision.mood || '',
+    urgency: decision.urgency || 2,
+    reviewTime: normalizeReviewTimeValue(decision.reviewTime) || new Date().toISOString().slice(0, 19),
+    selectedOption: decision.finalChoice || summary.selected || '',
+    satisfaction: reviewInfo.satisfaction || decision.satisfaction || '',
+    feedback: reviewInfo.feedback || decision.feedback || '',
+    historySummary: buildHistorySummary(),
+    options: buildAdviceOptions(decision)
+  }
+}
+
+function buildHistorySummary() {
+  const satisfaction = summary.value.satisfaction || {}
+  const total = summary.value.reviewed || 0
+  if (!total) {
+    return '暂无已复盘记录'
+  }
+  return `已复盘 ${total} 条；满意 ${satisfaction['满意'] || 0} 条，一般 ${satisfaction['一般'] || 0} 条，后悔 ${satisfaction['后悔'] || 0} 条。`
+}
+
+function buildAdviceOptions(decision) {
+  if (typeof decision.options === 'string' && decision.options.trim()) {
+    return decision.options
+  }
+  if (Array.isArray(decision.options) && decision.options.length > 0) {
+    return JSON.stringify({
+      selectedId: decision.options.find((item) => item.title === decision.finalChoice)?.id || '',
+      items: decision.options
+    })
+  }
+  if (decision.finalChoice) {
+    return decision.finalChoice
+  }
+  return '未填写候选方案'
+}
+
+function normalizeReviewTimeValue(value) {
+  if (!value) {
+    return ''
+  }
+  if (Array.isArray(value)) {
+    const [year, month, day, hour = 0, minute = 0, second = 0] = value
+    return `${year}-${padDatePart(month)}-${padDatePart(day)}T${padDatePart(hour)}:${padDatePart(minute)}:${padDatePart(second)}`
+  }
+  if (typeof value === 'string') {
+    return value.includes(' ') ? value.replace(' ', 'T') : value
+  }
+  return ''
+}
+
+function padDatePart(value) {
+  return String(value).padStart(2, '0')
 }
 
 function normalizeAdviceResult(data) {

@@ -5,7 +5,12 @@ import java.util.List;
 public record DecisionAdviceResponse(
         String overallAdvice,
         List<OptionAdvice> options,
-        String reminder
+        String reminder,
+        String summary,
+        String factors,
+        String risks,
+        List<String> improvements,
+        String nextReminder
 ) {
     public record OptionAdvice(
             String name,

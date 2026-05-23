@@ -16,7 +16,8 @@ export const useAuthStore = defineStore('auth', {
     user: getStoredUser()
   }),
   getters: {
-    isLoggedIn: (state) => Boolean(state.token)
+    isLoggedIn: (state) => Boolean(state.token),
+    isAdmin: (state) => state.user?.role === 'admin'
   },
   actions: {
     async login(payload) {

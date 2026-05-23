@@ -13,5 +13,8 @@ export const API_PATHS = {
   analysisTagBar: '/api/analysis/tag-bar',
   adviceGenerate: '/api/advice/generate',
   decisionDashboard: '/api/decisions/dashboard',
-  decisions: '/api/decisions'
+  decisions: '/api/decisions',
+  adminStats: '/api/admin/stats',
+  adminUsers: '/api/admin/users',
+  adminDecisions: '/api/admin/decisions'
 }

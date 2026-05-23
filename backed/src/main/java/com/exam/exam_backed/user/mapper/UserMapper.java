@@ -19,6 +19,7 @@ public interface UserMapper {
                 nickname,
                 avatar_url AS avatarUrl,
                 status,
+                role,
                 create_time AS createTime
             FROM user
             WHERE username = #{username}
@@ -34,6 +35,7 @@ public interface UserMapper {
                 nickname,
                 avatar_url AS avatarUrl,
                 status,
+                role,
                 create_time AS createTime
             FROM user
             WHERE id = #{id}
@@ -42,8 +44,8 @@ public interface UserMapper {
     Optional<User> findById(Long id);
 
     @Insert("""
-            INSERT INTO user (username, password_hash, nickname, avatar_url, status)
-            VALUES (#{username}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status})
+            INSERT INTO user (username, password_hash, nickname, avatar_url, status, role)
+            VALUES (#{username}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status}, #{role})
             """)
     int insert(User user);
 

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `nickname` VARCHAR(50) NOT NULL COMMENT '用户昵称',
     `avatar_url` VARCHAR(500) DEFAULT NULL COMMENT '头像地址',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用，0禁用',
+    `role` VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT '角色：admin管理员，user普通用户',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -19,6 +20,13 @@ CREATE TABLE IF NOT EXISTS `user` (
 
 ALTER TABLE `user`
     ADD COLUMN IF NOT EXISTS `avatar_url` VARCHAR(500) DEFAULT NULL COMMENT '头像地址' AFTER `nickname`;
+
+ALTER TABLE `user`
+    ADD COLUMN IF NOT EXISTS `role` VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT '角色：admin管理员，user普通用户' AFTER `status`;
+
+UPDATE `user`
+SET `role` = 'admin'
+WHERE `username` = 'admin';
 
 CREATE TABLE IF NOT EXISTS `decision` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '决策ID',

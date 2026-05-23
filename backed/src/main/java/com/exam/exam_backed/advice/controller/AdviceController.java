@@ -1,14 +1,13 @@
 package com.exam.exam_backed.advice.controller;
 
+import com.exam.exam_backed.advice.dto.AdviceGenerateRequest;
 import com.exam.exam_backed.advice.service.AdviceService;
 import com.exam.exam_backed.advice.vo.DecisionAdviceResponse;
 import com.exam.exam_backed.auth.service.TokenService;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.common.Result;
-import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,7 +25,7 @@ public class AdviceController {
     }
 
     @PostMapping("/generate")
-    public Result<DecisionAdviceResponse> generate(HttpServletRequest request, @Valid @RequestBody DecisionCreateRequest body) {
+    public Result<DecisionAdviceResponse> generate(HttpServletRequest request, @RequestBody AdviceGenerateRequest body) {
         currentUserId(request);
         return Result.success(adviceService.generate(body));
     }
