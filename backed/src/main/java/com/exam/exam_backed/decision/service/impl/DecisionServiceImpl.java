@@ -106,6 +106,8 @@ public class DecisionServiceImpl implements DecisionService {
                 parsedOptions.options(),
                 parsedOptions.finalChoice(),
                 decision.reason(),
+                decision.satisfaction(),
+                decision.feedback(),
                 decision.status(),
                 decision.createTime()
         );
@@ -134,9 +136,17 @@ public class DecisionServiceImpl implements DecisionService {
     @Transactional
     public Decision review(Long userId, Long decisionId, DecisionReviewRequest request) {
         findExistingDecision(userId, decisionId);
-        decisionMapper.updateReview(decisionId, userId, request.satisfaction(), request.feedback(), STATUS_REVIEWED);
+        decisionMapper.updateReview(decisionId, userId, request.satisfaction(), buildReviewFeedback(request), STATUS_REVIEWED);
         return decisionMapper.findByIdAndUserId(decisionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARAM_ERROR, DECISION_NOT_FOUND));
+    }
+
+    private String buildReviewFeedback(DecisionReviewRequest request) {
+        String feedback = request.feedback().trim();
+        if (!"后悔".equals(request.satisfaction()) || request.betterChoice() == null || request.betterChoice().isBlank()) {
+            return feedback;
+        }
+        return feedback + "\n更好的选择：" + request.betterChoice().trim();
     }
 
     @Override
@@ -207,7 +217,12 @@ public class DecisionServiceImpl implements DecisionService {
             String rawObject = rawArray.substring(objectStart, objectEnd + 1);
             String title = extractStringField(rawObject, "title").trim();
             if (!title.isEmpty()) {
-                options.add(new DecisionOption(extractStringField(rawObject, "id"), title, parseChildren(rawObject)));
+                options.add(new DecisionOption(
+                        extractStringField(rawObject, "id"),
+                        title,
+                        extractStringField(rawObject, "strategy"),
+                        parseChildren(rawObject)
+                ));
             }
             index = objectEnd + 1;
         }

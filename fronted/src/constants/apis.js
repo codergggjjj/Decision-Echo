@@ -11,6 +11,7 @@ export const API_PATHS = {
   analysisMoodSatisfaction: '/api/analysis/mood-satisfaction',
   analysisTrendLine: '/api/analysis/trend-line',
   analysisTagBar: '/api/analysis/tag-bar',
+  adviceGenerate: '/api/advice/generate',
   decisionDashboard: '/api/decisions/dashboard',
   decisions: '/api/decisions'
 }

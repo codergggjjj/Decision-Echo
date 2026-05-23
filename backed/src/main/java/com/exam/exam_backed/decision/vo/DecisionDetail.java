@@ -10,6 +10,8 @@ public record DecisionDetail(
         List<DecisionOption> options,
         String finalChoice,
         String reason,
+        String satisfaction,
+        String feedback,
         String status,
         LocalDateTime createTime
 ) {

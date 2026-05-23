@@ -36,10 +36,18 @@ export const useAuthStore = defineStore('auth', {
       return data
     },
     async loadCurrentUser() {
-      const user = await getCurrentUser()
-      this.user = user
-      setStoredUser(user)
-      return user
+      try {
+        const user = await getCurrentUser()
+        this.user = user
+        setStoredUser(user)
+        return user
+      } catch (error) {
+        this.token = null
+        this.user = null
+        removeToken()
+        removeStoredUser()
+        throw error
+      }
     },
     async updateProfile(payload) {
       const user = await updateProfileApi(payload)

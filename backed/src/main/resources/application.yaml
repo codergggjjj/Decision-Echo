@@ -14,3 +14,9 @@ mybatis:
     map-underscore-to-camel-case: true
 server:
   port: 9889
+
+advice:
+  ai:
+    api-key: ${ADVICE_API_KEY:sk-72e39d40388249d5bf626cf16dadc7e9}
+    base-url: ${ADVICE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    model: ${ADVICE_MODEL:qwen-plus-latest}

@@ -331,6 +331,18 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void reviewAppendsBetterChoiceWhenUserRegretsDecision() {
+        decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                LocalDateTime.now(), null, null, "pending", LocalDateTime.now(), LocalDateTime.now()));
+
+        Decision reviewed = decisionService.review(7L, 1L, new DecisionReviewRequest("后悔", "结果不如预期", "选择 B"));
+
+        assertEquals("后悔", reviewed.satisfaction());
+        assertEquals("结果不如预期\n更好的选择：选择 B", reviewed.feedback());
+        assertEquals("reviewed", reviewed.status());
+    }
+
+    @Test
     void reviewReturnsLatestRecordAfterDatabaseUpdate() {
         LocalDateTime now = LocalDateTime.now();
         decisionMapper.seed(new Decision(1L, 7L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,

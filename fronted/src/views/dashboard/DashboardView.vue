@@ -83,7 +83,7 @@
 
         <div v-else class="memory-feed">
           <article
-            v-for="decision in recentDecisions"
+            v-for="decision in pagedRecentDecisions"
             :key="decision.id"
             class="memory-item clickable"
             :class="statusClass(decision.status)"
@@ -113,6 +113,7 @@
               <div v-if="optionSummary(decision.options).selected" class="selected-option-preview">
                 <span>最终选择</span>
                 <strong>{{ optionSummary(decision.options).selected }}</strong>
+                <i v-if="optionSummary(decision.options).selectedStrategy">{{ optionSummary(decision.options).selectedStrategy }}</i>
               </div>
               <div v-if="optionSummary(decision.options).items.length" class="option-mini-tree">
                 <div
@@ -121,7 +122,10 @@
                   class="option-mini-item"
                   :class="{ selected: item.title === optionSummary(decision.options).selected }"
                 >
-                  <span>{{ item.title }}</span>
+                  <span>
+                    {{ item.title }}
+                    <i v-if="item.strategy">{{ item.strategy }}</i>
+                  </span>
                   <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
                 </div>
               </div>
@@ -134,6 +138,15 @@
               </div>
             </div>
           </article>
+          <el-pagination
+            v-if="recentDecisions.length > decisionPageSize"
+            v-model:current-page="decisionPage"
+            :page-size="decisionPageSize"
+            :total="recentDecisions.length"
+            background
+            class="decision-pagination"
+            layout="prev, pager, next"
+          />
         </div>
       </section>
 
@@ -182,9 +195,9 @@
       <strong>+</strong>
     </button>
 
-    <el-dialog v-model="createDialogVisible" class="youth-dialog create-decision-dialog" title="记录新决定" width="760px">
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-position="top">
-        <section class="create-form-section">
+    <el-dialog v-model="createDialogVisible" align-center class="youth-dialog create-decision-dialog" draggable title="记录新决定" width="760px">
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" class="create-decision-form" label-position="top">
+        <section class="create-form-section section-basic">
           <div class="create-section-heading">
             <span>01</span>
             <div>
@@ -212,7 +225,7 @@
           </div>
         </section>
 
-        <section class="create-form-section">
+        <section class="create-form-section section-options">
           <div class="create-section-heading">
             <span>02</span>
             <div>
@@ -228,13 +241,21 @@
               :class="{ selected: selectedOptionId === option.id }"
             >
               <div class="option-editor-head">
-                <label class="option-choice">
-                  <input v-model="selectedOptionId" type="radio" :value="option.id" />
-                  <span>最终选择</span>
-                </label>
+                <div class="option-card-title">
+                  <span class="option-index">方案 {{ optionIndex + 1 }}</span>
+                  <label class="option-choice">
+                    <input v-model="selectedOptionId" type="radio" :value="option.id" />
+                    <span>最终选择</span>
+                  </label>
+                </div>
                 <button type="button" class="text-action danger" @click="removeOption(option.id)">删除方案</button>
               </div>
-              <el-input v-model.trim="option.title" :placeholder="`候选方案 ${optionIndex + 1}`" />
+              <div class="option-main-row">
+                <el-input v-model.trim="option.title" :placeholder="`候选方案 ${optionIndex + 1}`" />
+                <el-select v-model="option.strategy" class="option-strategy-select" placeholder="方案标签">
+                  <el-option v-for="item in optionStrategyOptions" :key="item" :label="item" :value="item" />
+                </el-select>
+              </div>
               <div class="option-children">
                 <div v-for="child in option.children" :key="child.id" class="option-child-row">
                   <el-input v-model.trim="child.title" placeholder="补充点 / 理由" />
@@ -247,7 +268,7 @@
           </div>
         </section>
 
-        <section class="create-form-section">
+        <section class="create-form-section section-review">
           <div class="create-section-heading">
             <span>03</span>
             <div>
@@ -275,6 +296,55 @@
                 placeholder="选择回看时间"
               />
             </el-form-item>
+          </div>
+        </section>
+
+        <section class="ai-advice-card create-ai-advice-card">
+          <div>
+            <span>AI 决策建议</span>
+            <p>填完决策信息后，可以先生成一份建议，再决定是否保存。</p>
+          </div>
+          <el-button
+            v-if="!createAdviceResult"
+            :loading="createAdviceLoading"
+            class="primary-action ai-advice-button"
+            type="primary"
+            @click="handleGenerateCreateAdvice"
+          >
+            生成 AI 建议
+          </el-button>
+          <p v-if="createAdviceError" class="ai-advice-error">{{ createAdviceError }}</p>
+          <div v-if="createAdviceResult" class="ai-advice-result">
+            <p class="ai-advice-overall">{{ createAdviceResult.overallAdvice || '暂无整体建议' }}</p>
+            <div v-if="createAdviceResult.options?.length" class="ai-option-advice-list">
+              <article v-for="option in createAdviceResult.options || []" :key="option.name" class="ai-option-advice">
+                <h4>{{ option.name || '未命名方案' }}</h4>
+                <div class="ai-option-advice-grid">
+                  <section>
+                    <span>优点</span>
+                    <ul>
+                      <li v-for="item in adviceItems(option.pros)" :key="item">{{ item }}</li>
+                    </ul>
+                  </section>
+                  <section>
+                    <span>缺点</span>
+                    <ul>
+                      <li v-for="item in adviceItems(option.cons)" :key="item">{{ item }}</li>
+                    </ul>
+                  </section>
+                  <section>
+                    <span>风险</span>
+                    <ul>
+                      <li v-for="item in adviceItems(option.risks)" :key="item">{{ item }}</li>
+                    </ul>
+                  </section>
+                </div>
+                <p><strong>适合情况：</strong>{{ option.bestFor || '暂无' }}</p>
+                <p><strong>补充建议：</strong>{{ option.suggestion || '暂无' }}</p>
+              </article>
+            </div>
+            <p v-else class="ai-advice-empty">暂无候选方案分析</p>
+            <p class="ai-advice-reminder">{{ createAdviceResult.reminder || '最终选择前，可以再检查一次关键信息。' }}</p>
           </div>
         </section>
       </el-form>
@@ -306,7 +376,10 @@
           <span>候选方案</span>
           <div v-if="decisionDetail.options?.length" class="detail-option-list">
             <article v-for="item in decisionDetail.options" :key="item.id || item.title" class="detail-option-item" :class="{ selected: item.title === decisionDetail.finalChoice }">
-              <strong>{{ item.title }}</strong>
+              <strong>
+                {{ item.title }}
+                <i v-if="item.strategy">{{ item.strategy }}</i>
+              </strong>
               <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
             </article>
           </div>
@@ -322,6 +395,13 @@
           <span>选择原因</span>
           <p>{{ decisionDetail.reason || '未填写选择原因' }}</p>
         </section>
+
+        <section v-if="decisionDetail.status === 'reviewed'" class="detail-section">
+          <span>回测结果</span>
+          <p>{{ decisionDetail.satisfaction || '未记录满意度' }}</p>
+          <small v-if="decisionDetail.feedback" class="detail-feedback">{{ decisionDetail.feedback }}</small>
+        </section>
+
       </div>
     </el-dialog>
 
@@ -367,6 +447,16 @@
               placeholder="写下实际结果、和预期的偏差、下次可以怎么判断。"
             />
           </el-form-item>
+          <el-form-item v-if="reviewForm.satisfaction === '后悔'" label="更好的选择">
+            <el-select v-model="reviewForm.betterChoice" placeholder="从候选方案中重新选择">
+              <el-option
+                v-for="item in reviewBetterChoiceOptions"
+                :key="item.id || item.title"
+                :label="item.strategy ? `${item.title}（${item.strategy}）` : item.title"
+                :value="item.title"
+              />
+            </el-select>
+          </el-form-item>
         </el-form>
       </div>
       <template #footer>
@@ -385,7 +475,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../../store/auth'
-import { createDecision, deleteDecision, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
+import { createDecision, deleteDecision, generateDecisionAdvice, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -396,14 +486,19 @@ const reviewing = ref(false)
 const isSearching = ref(false)
 const isSearchMode = ref(false)
 const detailLoading = ref(false)
+const createAdviceLoading = ref(false)
 const deletingDecisionId = ref(null)
 const createDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
 const activeDecision = ref(null)
 const decisionDetail = ref(null)
+const createAdviceResult = ref(null)
+const createAdviceError = ref('')
 const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} }, recent: [], pendingReview: [] })
 const searchResults = ref([])
+const decisionPage = ref(1)
+const decisionPageSize = 10
 const tagOptions = ['学习', '消费', '工作', '生活', '健康']
 const moodOptions = ['平静', '焦虑', '纠结', '兴奋', '冲动']
 const statusFilterOptions = [
@@ -411,6 +506,7 @@ const statusFilterOptions = [
   { label: '待回看', value: 'pending' },
   { label: '已复盘', value: 'reviewed' }
 ]
+const optionStrategyOptions = ['保守', '平衡', '激进']
 const optionTree = ref(createDefaultOptionTree())
 const selectedOptionId = ref(optionTree.value[0].id)
 
@@ -426,7 +522,8 @@ const createForm = reactive({
 
 const reviewForm = reactive({
   satisfaction: '满意',
-  feedback: ''
+  feedback: '',
+  betterChoice: ''
 })
 
 const searchForm = reactive({
@@ -459,6 +556,16 @@ const greeting = computed(() => {
 const summary = computed(() => dashboard.value.summary || { total: 0, pending: 0, reviewed: 0, satisfaction: {} })
 const hasSearchFilters = computed(() => Boolean(searchForm.keyword || searchForm.tag || searchForm.status))
 const recentDecisions = computed(() => (isSearchMode.value ? searchResults.value : dashboard.value.recent || []))
+const pagedRecentDecisions = computed(() => {
+  const start = (decisionPage.value - 1) * decisionPageSize
+  return recentDecisions.value.slice(start, start + decisionPageSize)
+})
+const reviewBetterChoiceOptions = computed(() => {
+  if (!activeDecision.value) {
+    return []
+  }
+  return optionSummary(activeDecision.value.options).items
+})
 const pendingReview = computed(() => dashboard.value.pendingReview || [])
 const satisfactionRate = computed(() => {
   const reviewed = summary.value.reviewed || 0
@@ -492,6 +599,13 @@ async function loadDashboard() {
     if (!isSearchMode.value) {
       searchResults.value = []
     }
+    decisionPage.value = 1
+  } catch (error) {
+    if (error.response?.status === 401) {
+      router.push('/login')
+      return
+    }
+    throw error
   } finally {
     loading.value = false
   }
@@ -513,6 +627,7 @@ async function executeDecisionSearch() {
       limit: 50
     })
     isSearchMode.value = true
+    decisionPage.value = 1
   } finally {
     isSearching.value = false
   }
@@ -529,6 +644,7 @@ async function resetDecisionSearch() {
   searchForm.status = ''
   isSearchMode.value = false
   searchResults.value = []
+  decisionPage.value = 1
   await loadDashboard()
 }
 
@@ -557,6 +673,8 @@ function goAnalysis() {
 }
 
 function openCreateDialog() {
+  createAdviceResult.value = null
+  createAdviceError.value = ''
   createDialogVisible.value = true
 }
 
@@ -571,6 +689,23 @@ async function openDetail(decision) {
   }
 }
 
+async function handleGenerateCreateAdvice() {
+  await createFormRef.value.validate()
+  if (!validateOptionTree()) {
+    return
+  }
+  createAdviceLoading.value = true
+  createAdviceError.value = ''
+  try {
+    const data = await generateDecisionAdvice({ ...createForm, context: createForm.context || '', options: buildOptionsPayload() })
+    createAdviceResult.value = normalizeAdviceResult(data)
+  } catch (error) {
+    createAdviceError.value = 'AI 建议生成失败，请稍后重试。'
+  } finally {
+    createAdviceLoading.value = false
+  }
+}
+
 async function submitCreate() {
   await createFormRef.value.validate()
   if (!validateOptionTree()) {
@@ -581,6 +716,8 @@ async function submitCreate() {
     await createDecision({ ...createForm, context: createForm.context || '', options: buildOptionsPayload() })
     ElMessage.success('决策已保存')
     resetCreateForm()
+    createAdviceResult.value = null
+    createAdviceError.value = ''
     createDialogVisible.value = false
     await refreshDecisionData()
   } finally {
@@ -592,6 +729,7 @@ function openReview(decision) {
   activeDecision.value = decision
   reviewForm.satisfaction = '满意'
   reviewForm.feedback = ''
+  reviewForm.betterChoice = ''
   reviewDialogVisible.value = true
 }
 
@@ -624,9 +762,17 @@ async function submitReview() {
     ElMessage.warning('请填写复盘反馈')
     return
   }
+  if (reviewForm.satisfaction === '后悔' && !reviewForm.betterChoice) {
+    ElMessage.warning('请填写你认为更好的选择')
+    return
+  }
   reviewing.value = true
   try {
-    await reviewDecision(activeDecision.value.id, { ...reviewForm })
+    await reviewDecision(activeDecision.value.id, {
+      satisfaction: reviewForm.satisfaction,
+      feedback: reviewForm.feedback,
+      betterChoice: reviewForm.satisfaction === '后悔' ? reviewForm.betterChoice : undefined
+    })
     ElMessage.success('回测已保存')
     reviewDialogVisible.value = false
     await refreshDecisionData()
@@ -669,10 +815,11 @@ function statusClass(status) {
   return status === 'reviewed' ? 'done' : 'todo'
 }
 
-function createOptionNode(title = '', children = []) {
+function createOptionNode(title = '', children = [], strategy = '平衡') {
   return {
     id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     title,
+    strategy,
     children
   }
 }
@@ -736,6 +883,7 @@ function buildOptionsPayload() {
   const items = optionTree.value.map((option) => ({
     id: option.id,
     title: option.title.trim(),
+    strategy: option.strategy,
     children: option.children
       .map((child) => ({ id: child.id, title: child.title.trim() }))
       .filter((child) => child.title)
@@ -753,9 +901,11 @@ function optionSummary(rawOptions) {
       const selected = parsed.items.find((item) => item.id === parsed.selectedId)
       return {
         selected: selected?.title || '',
+        selectedStrategy: selected?.strategy || '',
         items: parsed.items.map((item) => ({
           id: item.id,
           title: item.title,
+          strategy: item.strategy || '',
           children: Array.isArray(item.children) ? item.children : []
         }))
       }
@@ -767,11 +917,46 @@ function optionSummary(rawOptions) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
-    .map((title, index) => ({ id: `legacy_${index}`, title, children: [] }))
-  return { selected: items[0]?.title || '', items }
+    .map((title, index) => ({ id: `legacy_${index}`, title, strategy: '', children: [] }))
+  return { selected: items[0]?.title || '', selectedStrategy: '', items }
+}
+
+function adviceItems(items) {
+  return Array.isArray(items) && items.length > 0 ? items : ['暂无']
+}
+
+function normalizeAdviceResult(data) {
+  if (!data) {
+    return null
+  }
+  if (data.overallAdvice || data.options || data.reminder) {
+    return data
+  }
+  if (typeof data.advice === 'string' && data.advice.trim()) {
+    const cleaned = data.advice.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+    try {
+      const parsed = JSON.parse(cleaned)
+      if (parsed && typeof parsed === 'object') {
+        return parsed
+      }
+    } catch (error) {
+      return {
+        overallAdvice: data.advice,
+        options: [],
+        reminder: '最终选择前，可以再检查一次关键信息。'
+      }
+    }
+  }
+  return null
 }
 
 onMounted(async () => {
-  await Promise.all([loadDashboard(), authStore.loadCurrentUser().catch(() => null)])
+  try {
+    await Promise.all([loadDashboard(), authStore.loadCurrentUser()])
+  } catch (error) {
+    if (error.response?.status === 401) {
+      router.push('/login')
+    }
+  }
 })
 </script>

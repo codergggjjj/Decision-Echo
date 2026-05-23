@@ -9,6 +9,11 @@ public record DecisionReviewRequest(
         String satisfaction,
 
         @NotBlank(message = "复盘反馈不能为空")
-        String feedback
+        String feedback,
+
+        String betterChoice
 ) {
+    public DecisionReviewRequest(String satisfaction, String feedback) {
+        this(satisfaction, feedback, null);
+    }
 }

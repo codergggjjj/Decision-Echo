@@ -13,6 +13,10 @@ export function getDecisionDetail(id) {
   return request.get(`${API_PATHS.decisions}/${id}`)
 }
 
+export function generateDecisionAdvice(data) {
+  return request.post(API_PATHS.adviceGenerate, data)
+}
+
 export function createDecision(data) {
   return request.post(API_PATHS.decisions, data)
 }
