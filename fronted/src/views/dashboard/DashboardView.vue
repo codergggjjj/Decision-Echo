@@ -2,7 +2,7 @@
   <main class="dashboard-page youth-dashboard content-first-dashboard" v-loading="loading">
     <header class="memory-header">
       <div>
-        <h1>{{ displayName }}的决策回看</h1>
+        <h1>决策回声</h1>
         <p>{{ greeting }}，先看过去留下的记录，再决定要不要补一条新的。</p>
       </div>
       <div class="memory-actions">
@@ -442,7 +442,7 @@
       </div>
     </el-dialog>
 
-    <el-dialog v-model="reviewDialogVisible" class="youth-dialog review-decision-dialog" title="补回测" width="560px">
+    <el-dialog v-model="reviewDialogVisible" align-center class="youth-dialog review-decision-dialog" title="补回测" width="560px">
       <div v-if="activeDecision" class="review-dialog-content">
         <section class="review-target-card">
           <div class="review-target-meta">
@@ -1050,6 +1050,7 @@ function adviceItems(items) {
 function buildAdvicePayload(decision, reviewInfo = {}) {
   const summary = optionSummary(decision.options)
   return {
+    decisionId: decision.id || null,
     mode: 'review',
     title: decision.title || '未填写标题',
     context: decision.context || '',

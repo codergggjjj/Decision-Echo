@@ -57,17 +57,19 @@ input {
 }
 
 .brand-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 5px 16px 5px 5px;
+  justify-content: center;
+  width: fit-content;
+  min-height: 56px;
+  padding: 10px 28px;
   border: 1px solid rgba(44, 97, 116, 0.16);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
   color: #264f5f;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .hero-content h1 {
@@ -172,18 +174,6 @@ input {
   gap: 16px;
   align-items: center;
   margin-bottom: 28px;
-}
-
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 700;
-  background: #29a889;
 }
 
 .panel-heading h2,
@@ -532,6 +522,12 @@ input {
   .login-hero {
     min-height: auto;
     padding: 32px 20px 28px;
+  }
+
+  .brand-chip {
+    min-height: 50px;
+    padding: 9px 24px;
+    font-size: 18px;
   }
 
   .hero-content h1 {
@@ -1987,10 +1983,6 @@ body {
   background: rgba(255, 255, 255, 0.88);
   color: #008ac5;
   box-shadow: 0 8px 22px rgba(0, 174, 236, 0.1);
-}
-
-.brand-mark {
-  background: linear-gradient(135deg, var(--bili-blue), #49c6f5);
 }
 
 .hero-content h1 {

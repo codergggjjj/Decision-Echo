@@ -13,7 +13,6 @@ import com.exam.exam_backed.auth.vo.UserVO;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.common.Result;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,21 +58,20 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public Result<UserVO> me(HttpServletRequest request) {
-        return Result.success(authService.currentUser(currentUserId(request)));
+    public Result<UserVO> me() {
+        return Result.success(authService.currentUser(currentUserId()));
     }
 
     @PutMapping("/profile")
-    public Result<UserVO> updateProfile(HttpServletRequest request, @Valid @RequestBody ProfileUpdateRequest body) {
-        return Result.success(authService.updateProfile(currentUserId(request), body));
+    public Result<UserVO> updateProfile(@Valid @RequestBody ProfileUpdateRequest body) {
+        return Result.success(authService.updateProfile(currentUserId(), body));
     }
 
     @PostMapping("/avatar")
     public Result<Map<String, String>> uploadAvatar(
-            HttpServletRequest request,
             @RequestParam("file") MultipartFile file
     ) {
-        currentUserId(request);
+        currentUserId();
         if (file.isEmpty()) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "澶村儚鏂囦欢涓嶈兘涓虹┖");
         }
@@ -99,22 +97,21 @@ public class AuthController {
 
     @PutMapping("/password")
     public Result<Void> changePassword(
-            HttpServletRequest request,
             @Valid @RequestBody PasswordChangeRequest passwordChangeRequest
     ) {
-        Long userId = currentUserId(request);
+        Long userId = currentUserId();
         authService.changePassword(userId, passwordChangeRequest);
         authSessionService.logout();
         return Result.success(null);
     }
 
     @PostMapping("/logout")
-    public Result<Void> logout(HttpServletRequest request) {
+    public Result<Void> logout() {
         authSessionService.logout();
         return Result.success(null);
     }
 
-    private Long currentUserId(HttpServletRequest request) {
+    private Long currentUserId() {
         return authSessionService.currentUserId();
     }
 

@@ -8,7 +8,6 @@ import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.vo.DecisionDashboard;
 import com.exam.exam_backed.decision.vo.DecisionDetail;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,47 +33,45 @@ public class DecisionController {
     }
 
     @GetMapping("/dashboard")
-    public Result<DecisionDashboard> dashboard(HttpServletRequest request) {
-        return Result.success(decisionService.dashboard(currentUserId(request)));
+    public Result<DecisionDashboard> dashboard() {
+        return Result.success(decisionService.dashboard(currentUserId()));
     }
 
     @GetMapping
     public Result<List<Decision>> search(
-            HttpServletRequest request,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "50") int limit
     ) {
-        return Result.success(decisionService.search(currentUserId(request), keyword, tag, status, limit));
+        return Result.success(decisionService.search(currentUserId(), keyword, tag, status, limit));
     }
 
     @GetMapping("/{id}")
-    public Result<DecisionDetail> detail(HttpServletRequest request, @PathVariable Long id) {
-        return Result.success(decisionService.detail(currentUserId(request), id));
+    public Result<DecisionDetail> detail(@PathVariable Long id) {
+        return Result.success(decisionService.detail(currentUserId(), id));
     }
 
     @PostMapping
-    public Result<Decision> create(HttpServletRequest request, @Valid @RequestBody DecisionCreateRequest body) {
-        return Result.success(decisionService.create(currentUserId(request), body));
+    public Result<Decision> create(@Valid @RequestBody DecisionCreateRequest body) {
+        return Result.success(decisionService.create(currentUserId(), body));
     }
 
     @PutMapping("/{id}/review")
     public Result<Decision> review(
-            HttpServletRequest request,
             @PathVariable Long id,
             @Valid @RequestBody DecisionReviewRequest body
     ) {
-        return Result.success(decisionService.review(currentUserId(request), id, body));
+        return Result.success(decisionService.review(currentUserId(), id, body));
     }
 
     @DeleteMapping("/{id}")
-    public Result<Void> delete(HttpServletRequest request, @PathVariable Long id) {
-        decisionService.delete(currentUserId(request), id);
+    public Result<Void> delete(@PathVariable Long id) {
+        decisionService.delete(currentUserId(), id);
         return Result.success(null);
     }
 
-    private Long currentUserId(HttpServletRequest request) {
+    private Long currentUserId() {
         return authSessionService.currentUserId();
     }
 }

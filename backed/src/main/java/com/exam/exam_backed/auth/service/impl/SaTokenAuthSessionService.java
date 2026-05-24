@@ -19,11 +19,6 @@ public class SaTokenAuthSessionService implements AuthSessionService {
     }
 
     @Override
-    public void checkLogin() {
-        StpUtil.checkLogin();
-    }
-
-    @Override
     public void logout() {
         StpUtil.logout();
     }

@@ -7,7 +7,6 @@ import com.exam.exam_backed.analysis.vo.TagBarResponse;
 import com.exam.exam_backed.analysis.vo.TrendLineResponse;
 import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.common.Result;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,32 +25,30 @@ public class AnalysisController {
 
     @GetMapping("/satisfaction-pie")
     public Result<SatisfactionPieResponse> satisfactionPie(
-            HttpServletRequest request,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String mood
     ) {
-        return Result.success(analysisService.satisfactionPie(currentUserId(request), tag, mood));
+        return Result.success(analysisService.satisfactionPie(currentUserId(), tag, mood));
     }
 
     @GetMapping("/trend-line")
     public Result<TrendLineResponse> trendLine(
-            HttpServletRequest request,
             @RequestParam(required = false) String month
     ) {
-        return Result.success(analysisService.trendLine(currentUserId(request), month));
+        return Result.success(analysisService.trendLine(currentUserId(), month));
     }
 
     @GetMapping("/mood-satisfaction")
-    public Result<MoodSatisfactionResponse> moodSatisfaction(HttpServletRequest request) {
-        return Result.success(analysisService.moodSatisfaction(currentUserId(request)));
+    public Result<MoodSatisfactionResponse> moodSatisfaction() {
+        return Result.success(analysisService.moodSatisfaction(currentUserId()));
     }
 
     @GetMapping("/tag-bar")
-    public Result<TagBarResponse> tagBar(HttpServletRequest request) {
-        return Result.success(analysisService.tagBar(currentUserId(request)));
+    public Result<TagBarResponse> tagBar() {
+        return Result.success(analysisService.tagBar(currentUserId()));
     }
 
-    private Long currentUserId(HttpServletRequest request) {
+    private Long currentUserId() {
         return authSessionService.currentUserId();
     }
 }

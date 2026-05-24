@@ -12,6 +12,11 @@ import java.util.Map;
 
 public abstract class AbstractBaseMapperStub<T> implements BaseMapper<T> {
     @Override
+    public int insert(T entity) {
+        throw unsupported();
+    }
+
+    @Override
     public int deleteById(T entity) {
         throw unsupported();
     }

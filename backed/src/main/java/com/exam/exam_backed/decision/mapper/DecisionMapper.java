@@ -1,11 +1,12 @@
 package com.exam.exam_backed.decision.mapper;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.exam.exam_backed.decision.Decision;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,84 +14,54 @@ import java.util.Optional;
 
 @Mapper
 public interface DecisionMapper extends BaseMapper<Decision> {
-    @Select("""
-            SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
-                   review_time AS reviewTime, satisfaction, feedback, status,
-                   create_time AS createTime, update_time AS updateTime
-            FROM decision
-            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
-            LIMIT 1
-            """)
-    Optional<Decision> findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+    default Optional<Decision> findByIdAndUserId(Long id, Long userId) {
+        return Optional.ofNullable(selectOne(baseUserQuery(userId)
+                .eq("id", id)
+                .last("LIMIT 1")));
+    }
 
-    @Select("""
-            SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
-                   review_time AS reviewTime, satisfaction, feedback, status,
-                   create_time AS createTime, update_time AS updateTime
-            FROM decision
-            WHERE user_id = #{userId} AND deleted = 0
-            ORDER BY create_time DESC, id DESC
-            LIMIT #{limit}
-            """)
-    List<Decision> findRecentByUserId(@Param("userId") Long userId, @Param("limit") int limit);
+    default List<Decision> findRecentByUserId(Long userId, int limit) {
+        return selectList(baseUserQuery(userId)
+                .orderByDesc("create_time", "id")
+                .last("LIMIT " + limit));
+    }
 
-    @Select("""
-            <script>
-            SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
-                   review_time AS reviewTime, satisfaction, feedback, status,
-                   create_time AS createTime, update_time AS updateTime
-            FROM decision
-            WHERE user_id = #{userId} AND deleted = 0
-            <if test="keyword != null and keyword != ''">
-              AND title LIKE CONCAT('%', #{keyword}, '%')
-            </if>
-            <if test="tag != null and tag != ''">
-              AND tags LIKE CONCAT('%', #{tag}, '%')
-            </if>
-            <if test="status != null and status != ''">
-              AND status = #{status}
-            </if>
-            ORDER BY create_time DESC, id DESC
-            LIMIT #{limit}
-            </script>
-            """)
-    List<Decision> searchByUserId(
-            @Param("userId") Long userId,
-            @Param("keyword") String keyword,
-            @Param("tag") String tag,
-            @Param("status") String status,
-            @Param("limit") int limit
-    );
+    default List<Decision> searchByUserId(Long userId, String keyword, String tag, String status, int limit) {
+        QueryWrapper<Decision> query = baseUserQuery(userId);
+        if (keyword != null && !keyword.isBlank()) {
+            query.like("title", keyword);
+        }
+        if (tag != null && !tag.isBlank()) {
+            query.like("tags", tag);
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq("status", status);
+        }
+        return selectList(query.orderByDesc("create_time", "id").last("LIMIT " + limit));
+    }
 
-    @Select("""
-            SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
-                   review_time AS reviewTime, satisfaction, feedback, status,
-                   create_time AS createTime, update_time AS updateTime
-            FROM decision
-            WHERE user_id = #{userId}
-              AND deleted = 0
-              AND status = 'pending'
-              AND review_time <= NOW()
-            ORDER BY review_time ASC, id DESC
-            LIMIT #{limit}
-            """)
-    List<Decision> findDuePendingReviewByUserId(@Param("userId") Long userId, @Param("limit") int limit);
+    default List<Decision> findDuePendingReviewByUserId(Long userId, int limit) {
+        return selectList(baseUserQuery(userId)
+                .eq("status", "pending")
+                .le("review_time", LocalDateTime.now())
+                .orderByAsc("review_time")
+                .orderByDesc("id")
+                .last("LIMIT " + limit));
+    }
 
-    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId} AND deleted = 0")
-    int countByUserId(@Param("userId") Long userId);
+    default int countByUserId(Long userId) {
+        return selectCount(baseUserQuery(userId)).intValue();
+    }
 
-    @Select("SELECT COUNT(*) FROM decision WHERE user_id = #{userId} AND status = #{status} AND deleted = 0")
-    int countByUserIdAndStatus(@Param("userId") Long userId, @Param("status") String status);
+    default int countByUserIdAndStatus(Long userId, String status) {
+        return selectCount(baseUserQuery(userId).eq("status", status)).intValue();
+    }
 
-    @Select("""
-            SELECT COUNT(*)
-            FROM decision
-            WHERE user_id = #{userId}
-              AND deleted = 0
-              AND status = 'reviewed'
-              AND satisfaction = #{satisfaction}
-            """)
-    int countReviewedBySatisfaction(@Param("userId") Long userId, @Param("satisfaction") String satisfaction);
+    default int countReviewedBySatisfaction(Long userId, String satisfaction) {
+        return selectCount(baseUserQuery(userId)
+                .eq("status", "reviewed")
+                .eq("satisfaction", satisfaction)).intValue();
+    }
 
     @Select("""
             <script>
@@ -177,27 +148,29 @@ public interface DecisionMapper extends BaseMapper<Decision> {
     record MoodSatisfactionCount(String mood, String satisfaction, int count) {
     }
 
-    @Update("""
-            UPDATE decision
-            SET satisfaction = #{satisfaction},
-                feedback = #{feedback},
-                status = #{status},
-                update_time = NOW()
-            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
-            """)
-    int updateReview(
-            @Param("id") Long id,
-            @Param("userId") Long userId,
-            @Param("satisfaction") String satisfaction,
-            @Param("feedback") String feedback,
-            @Param("status") String status
-    );
+    default int updateReview(Long id, Long userId, String satisfaction, String feedback, String status) {
+        return update(null, new UpdateWrapper<Decision>()
+                .eq("id", id)
+                .eq("user_id", userId)
+                .eq("deleted", 0)
+                .set("satisfaction", satisfaction)
+                .set("feedback", feedback)
+                .set("status", status)
+                .setSql("update_time = NOW()"));
+    }
 
-    @Update("""
-            UPDATE decision
-            SET deleted = 1,
-                update_time = NOW()
-            WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
-            """)
-    int softDelete(@Param("id") Long id, @Param("userId") Long userId);
+    default int softDelete(Long id, Long userId) {
+        return update(null, new UpdateWrapper<Decision>()
+                .eq("id", id)
+                .eq("user_id", userId)
+                .eq("deleted", 0)
+                .set("deleted", 1)
+                .setSql("update_time = NOW()"));
+    }
+
+    private QueryWrapper<Decision> baseUserQuery(Long userId) {
+        return new QueryWrapper<Decision>()
+                .eq("user_id", userId)
+                .eq("deleted", 0);
+    }
 }

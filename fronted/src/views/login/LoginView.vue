@@ -3,8 +3,7 @@
     <section class="login-hero" aria-label="应用介绍">
       <div class="hero-content">
         <div class="brand-chip">
-          <span class="brand-mark">决</span>
-          <span>个人决策回测器</span>
+          <span>决策回声</span>
         </div>
         <h1>把今天的想法，留给之后的自己看。</h1>
         <p>记录选择、理由和回看时间。结果出现后再复盘一次，让下一次判断更稳一点。</p>

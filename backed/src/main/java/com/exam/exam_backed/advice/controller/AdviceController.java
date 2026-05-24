@@ -5,7 +5,6 @@ import com.exam.exam_backed.advice.service.AdviceService;
 import com.exam.exam_backed.advice.vo.DecisionAdviceResponse;
 import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.common.Result;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,12 +22,8 @@ public class AdviceController {
     }
 
     @PostMapping("/generate")
-    public Result<DecisionAdviceResponse> generate(HttpServletRequest request, @RequestBody AdviceGenerateRequest body) {
-        currentUserId(request);
-        return Result.success(adviceService.generate(body));
-    }
-
-    private Long currentUserId(HttpServletRequest request) {
-        return authSessionService.currentUserId();
+    public Result<DecisionAdviceResponse> generate(@RequestBody AdviceGenerateRequest body) {
+        Long userId = authSessionService.currentUserId();
+        return Result.success(adviceService.generate(body, userId));
     }
 }

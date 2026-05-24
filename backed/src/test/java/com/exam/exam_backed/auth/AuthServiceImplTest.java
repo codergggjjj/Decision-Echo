@@ -232,13 +232,6 @@ class AuthServiceImplTest {
         }
 
         @Override
-        public void checkLogin() {
-            if (currentUserId == null) {
-                throw new IllegalStateException("not login");
-            }
-        }
-
-        @Override
         public void logout() {
             currentUserId = null;
         }

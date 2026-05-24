@@ -3,6 +3,7 @@ package com.exam.exam_backed.advice.dto;
 import java.time.LocalDateTime;
 
 public record AdviceGenerateRequest(
+        Long decisionId,
         String mode,
         String title,
         String context,

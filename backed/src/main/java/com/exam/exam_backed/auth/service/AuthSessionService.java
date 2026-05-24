@@ -7,7 +7,5 @@ public interface AuthSessionService {
 
     Long currentUserId();
 
-    void checkLogin();
-
     void logout();
 }

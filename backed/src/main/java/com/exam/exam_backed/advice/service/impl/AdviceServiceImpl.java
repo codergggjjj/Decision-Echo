@@ -1,13 +1,16 @@
 package com.exam.exam_backed.advice.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.exam.exam_backed.advice.dto.AdviceGenerateRequest;
+import com.exam.exam_backed.advice.mapper.SystemConfigMapper;
 import com.exam.exam_backed.advice.service.AdviceService;
 import com.exam.exam_backed.advice.vo.DecisionAdviceResponse;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
+import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -15,24 +18,28 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AdviceServiceImpl implements AdviceService {
+    private static final String API_KEY_CONFIG = "advice.ai.api_key";
+    private static final String BASE_URL_CONFIG = "advice.ai.base_url";
+    private static final String MODEL_CONFIG = "advice.ai.model";
+    private static final String DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    private static final String DEFAULT_MODEL = "qwen-plus";
+
+    private final SystemConfigMapper systemConfigMapper;
+    private final DecisionMapper decisionMapper;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final String apiKey;
-    private final String baseUrl;
-    private final String model;
 
-    public AdviceServiceImpl(
-            @Value("${advice.ai.api-key:}") String apiKey,
-            @Value("${advice.ai.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}") String baseUrl,
-            @Value("${advice.ai.model:qwen-plus-latest}") String model
-    ) {
-        this.apiKey = apiKey;
-        this.baseUrl = baseUrl;
-        this.model = model;
+    public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper) {
+        this.systemConfigMapper = systemConfigMapper;
+        this.decisionMapper = decisionMapper;
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(8))
@@ -40,19 +47,45 @@ public class AdviceServiceImpl implements AdviceService {
     }
 
     @Override
-    public DecisionAdviceResponse generate(AdviceGenerateRequest request) {
-        if (apiKey == null || apiKey.isBlank()) {
+    public DecisionAdviceResponse generate(AdviceGenerateRequest request, Long userId) {
+        AiSettings settings = loadAiSettings();
+        if (settings.apiKey().isBlank()) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 服务未配置，请先设置 API Key");
         }
-        return requestAdvice(request);
+        validateCurrentDecisionAccess(request, userId);
+        return requestAdvice(request, settings, buildHistorySummary(request, userId));
     }
 
-    private DecisionAdviceResponse requestAdvice(AdviceGenerateRequest decision) {
+    private void validateCurrentDecisionAccess(AdviceGenerateRequest request, Long userId) {
+        if (request.decisionId() == null) {
+            return;
+        }
+        if (userId == null || decisionMapper.findByIdAndUserId(request.decisionId(), userId).isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "决策记录不存在");
+        }
+    }
+
+    private AiSettings loadAiSettings() {
+        return new AiSettings(
+                configValue(API_KEY_CONFIG, ""),
+                configValue(BASE_URL_CONFIG, DEFAULT_BASE_URL),
+                configValue(MODEL_CONFIG, DEFAULT_MODEL)
+        );
+    }
+
+    private String configValue(String key, String defaultValue) {
+        return systemConfigMapper.findValueByKey(key)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .orElse(defaultValue);
+    }
+
+    private DecisionAdviceResponse requestAdvice(AdviceGenerateRequest decision, AiSettings settings, String historySummary) {
         try {
-            String requestBody = buildRequestBody(decision);
-            HttpRequest request = HttpRequest.newBuilder(chatCompletionsUri())
+            String requestBody = buildRequestBody(decision, settings.model(), historySummary);
+            HttpRequest request = HttpRequest.newBuilder(chatCompletionsUri(settings.baseUrl()))
                     .timeout(Duration.ofSeconds(30))
-                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Authorization", "Bearer " + settings.apiKey())
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
@@ -72,7 +105,7 @@ public class AdviceServiceImpl implements AdviceService {
         }
     }
 
-    private URI chatCompletionsUri() {
+    private URI chatCompletionsUri(String baseUrl) {
         String normalizedBaseUrl = baseUrl == null ? "" : baseUrl.trim();
         if (normalizedBaseUrl.endsWith("/")) {
             normalizedBaseUrl = normalizedBaseUrl.substring(0, normalizedBaseUrl.length() - 1);
@@ -80,7 +113,7 @@ public class AdviceServiceImpl implements AdviceService {
         return URI.create(normalizedBaseUrl + "/chat/completions");
     }
 
-    private String buildRequestBody(AdviceGenerateRequest decision) {
+    private String buildRequestBody(AdviceGenerateRequest decision, String model, String historySummary) {
         boolean reviewMode = isReviewMode(decision);
         return """
                 {"model":"%s","temperature":0.3,"response_format":{"type":"json_object"},"messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]}
@@ -89,7 +122,7 @@ public class AdviceServiceImpl implements AdviceService {
                 escapeJson(reviewMode
                         ? "你是一个理性、温和、客观的个人决策复盘助手。你必须只输出合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。"
                         : "你是一个理性、温和、客观的个人决策分析助手。你必须只输出合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。"),
-                escapeJson(reviewMode ? buildReviewPrompt(decision) : buildCreatePrompt(decision))
+                escapeJson(reviewMode ? buildReviewPrompt(decision, historySummary) : buildCreatePrompt(decision, historySummary))
         ).trim();
     }
 
@@ -97,32 +130,31 @@ public class AdviceServiceImpl implements AdviceService {
         return "review".equalsIgnoreCase(fallback(decision.mode(), ""));
     }
 
-    private String buildCreatePrompt(AdviceGenerateRequest decision) {
+    private String buildCreatePrompt(AdviceGenerateRequest decision, String historySummary) {
         return """
-                请根据用户提供的决策背景和候选方案，对每个候选方案进行利弊分析。
+                请根据用户提供的决策背景、候选方案和历史决策数据，对每个候选方案进行利弊分析。
 
                 重要要求：
                 1. 不要替用户直接做最终决定。
                 2. 不要使用绝对化语气，例如“必须选”“一定不要选”。
                 3. 不要编造用户没有提供的信息。
-                4. 如果信息不足，请明确指出还需要补充哪些信息。
+                4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 分析要简洁、具体、可执行。
-                6. 语气温和，适合普通用户阅读。
-                7. 输出必须是合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。
+                6. 输出必须是合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。
 
                 用户决策信息：
-
                 决策标题：%s
                 决策背景：%s
                 决策标签：%s
                 当前心情：%s
                 紧急程度：%s
+                历史决策数据：
+                %s
 
                 候选方案：
                 %s
 
                 请严格返回以下 JSON 结构：
-
                 {
                   "overallAdvice": "整体分析总结，1-2句话",
                   "options": [
@@ -143,28 +175,25 @@ public class AdviceServiceImpl implements AdviceService {
                 fallback(decision.tags(), "未填写标签"),
                 fallback(decision.mood(), "未填写心情"),
                 decision.urgency(),
+                historySummary,
                 fallback(decision.options(), "未填写候选方案")
         );
     }
 
-    private String buildReviewPrompt(AdviceGenerateRequest decision) {
+    private String buildReviewPrompt(AdviceGenerateRequest decision, String historySummary) {
         return """
-                请根据用户提供的决策记录、回测结果和历史满意度情况，生成一份结构清晰、语气温和、可执行的复盘建议。
+                请根据用户提供的当前决策记录、回测结果和数据库中的相关历史决策数据，生成结构清晰、语气温和、可执行的复盘建议。
 
                 重要要求：
                 1. 不要替用户做绝对判断。
-                2. 不要使用“你必须”“你一定错了”“绝对应该”等强制或责备语气。
+                2. 不要使用“你必须”“你一定错了”“绝对应当”等强制或责备语气。
                 3. 不要编造用户没有提供的信息。
-                4. 如果信息不足，请基于已有信息谨慎分析。
+                4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 建议要具体、简洁、可执行。
-                6. 不要输出医学、法律、金融等高风险专业建议。
-                7. 总字数控制在 300 字以内。
-                8. 必须严格按照指定 JSON 格式输出。
-                9. 不要输出 Markdown。
-                10. 不要输出 JSON 以外的任何解释。
+                6. 总字数控制在 300 字以内。
+                7. 必须严格按照指定 JSON 格式输出，不要输出 Markdown 或 JSON 以外的解释。
 
-                用户决策信息如下：
-
+                用户当前决策信息：
                 决策标题：%s
                 决策背景：%s
                 候选方案：%s
@@ -175,18 +204,18 @@ public class AdviceServiceImpl implements AdviceService {
                 紧急程度：%s
                 回测满意度：%s
                 回测反馈：%s
-                用户历史满意度概况：%s
+                历史决策数据：
+                %s
 
                 请严格返回以下 JSON 格式：
-
                 {
                   "summary": "决策概括：用 1-2 句话概括这次决策的核心内容和结果。",
-                  "factors": "影响因素：分析当时影响用户选择的主要因素，例如情绪、时间压力、信息充分度、收益预期等。",
-                  "risks": "风险问题：指出这次决策中可能存在的不足、风险或可以反思的地方，语气要温和，不要责备。",
+                  "factors": "影响因素：分析当时影响用户选择的主要因素。",
+                  "risks": "风险问题：指出这次决策中可能存在的不足或可反思的地方，语气温和。",
                   "improvements": [
-                    "改进建议1：给出一条具体、可执行的建议。",
-                    "改进建议2：给出一条具体、可执行的建议。",
-                    "改进建议3：给出一条具体、可执行的建议。"
+                    "改进建议1：一条具体、可执行的建议。",
+                    "改进建议2：一条具体、可执行的建议。",
+                    "改进建议3：一条具体、可执行的建议。"
                   ],
                   "nextReminder": "下次提醒：用一句话提醒用户下次遇到类似决策时可以注意什么。"
                 }
@@ -201,8 +230,125 @@ public class AdviceServiceImpl implements AdviceService {
                 decision.urgency(),
                 fallback(decision.satisfaction(), "未填写回测满意度"),
                 fallback(decision.feedback(), "未填写回测反馈"),
-                fallback(decision.historySummary(), "暂无历史满意度概况")
+                historySummary
         );
+    }
+
+    private String buildHistorySummary(AdviceGenerateRequest currentDecision, Long userId) {
+        if (userId == null) {
+            return "历史数据较少，本次建议主要基于当前决策信息。";
+        }
+        Long currentDecisionId = currentDecision.decisionId();
+        List<String> currentTags = splitTags(currentDecision.tags());
+        List<Decision> reviewedHistory = decisionMapper.selectList(new QueryWrapper<Decision>()
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+                        .eq("status", "reviewed")
+                        .isNotNull("satisfaction")
+                        .ne("satisfaction", "")
+                        .ne(currentDecisionId != null, "id", currentDecisionId)
+                        .orderByDesc("review_time", "create_time")
+                        .last("LIMIT 100"))
+                .stream()
+                .filter(decision -> userId.equals(decision.userId()))
+                .filter(decision -> currentDecisionId == null || !currentDecisionId.equals(decision.id()))
+                .filter(decision -> "reviewed".equals(decision.status()))
+                .filter(decision -> hasText(decision.satisfaction()))
+                .toList();
+        if (reviewedHistory.isEmpty()) {
+            return "历史数据较少，本次建议主要基于当前决策信息。";
+        }
+
+        List<Decision> relatedHistory = reviewedHistory.stream()
+                .filter(decision -> hasAnyTag(decision.tags(), currentTags))
+                .toList();
+        boolean fallbackToAllReviewed = relatedHistory.isEmpty();
+        List<Decision> selectedHistory = fallbackToAllReviewed ? reviewedHistory : relatedHistory;
+        Map<String, Integer> counts = satisfactionCounts(selectedHistory);
+        List<Decision> topSimilar = selectedHistory.stream()
+                .sorted(Comparator.comparingInt((Decision decision) -> relevanceScore(currentDecision, decision, currentTags)).reversed())
+                .limit(5)
+                .toList();
+
+        StringBuilder builder = new StringBuilder();
+        builder.append(fallbackToAllReviewed
+                ? "同标签历史数据不足，使用当前用户全部已回测决策作为兜底统计。"
+                : "同标签历史回测 " + selectedHistory.size() + " 条。");
+        builder.append("\n统计：共 ").append(selectedHistory.size())
+                .append(" 条；满意 ").append(counts.getOrDefault("满意", 0))
+                .append(" 条，一般 ").append(counts.getOrDefault("一般", 0))
+                .append(" 条，后悔 ").append(counts.getOrDefault("后悔", 0))
+                .append(" 条。");
+        builder.append("\n相似历史记录：");
+        for (Decision decision : topSimilar) {
+            builder.append("\n- ")
+                    .append(fallback(decision.title(), "未命名决策"))
+                    .append("；标签：").append(fallback(decision.tags(), "无"))
+                    .append("；满意度：").append(decision.satisfaction())
+                    .append("；反馈：").append(fallback(decision.feedback(), "无"));
+        }
+        return builder.toString();
+    }
+
+    private List<String> splitTags(String rawTags) {
+        if (!hasText(rawTags)) {
+            return List.of();
+        }
+        String[] values = rawTags.split("[,，、\\s]+");
+        List<String> tags = new ArrayList<>();
+        for (String value : values) {
+            String tag = value.trim();
+            if (!tag.isBlank()) {
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
+    private boolean hasAnyTag(String decisionTags, List<String> targetTags) {
+        if (targetTags.isEmpty() || !hasText(decisionTags)) {
+            return false;
+        }
+        for (String tag : targetTags) {
+            if (decisionTags.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<String, Integer> satisfactionCounts(List<Decision> decisions) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Decision decision : decisions) {
+            counts.merge(decision.satisfaction(), 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private int relevanceScore(AdviceGenerateRequest currentDecision, Decision historyDecision, List<String> currentTags) {
+        int score = 0;
+        for (String tag : currentTags) {
+            if (hasText(historyDecision.tags()) && historyDecision.tags().contains(tag)) {
+                score += 5;
+            }
+        }
+        String currentTitle = fallback(currentDecision.title(), "");
+        String historyTitle = fallback(historyDecision.title(), "");
+        if (hasText(currentTitle) && hasText(historyTitle)) {
+            if (currentTitle.contains(historyTitle) || historyTitle.contains(currentTitle)) {
+                score += 8;
+            }
+            for (String token : currentTitle.split("[,，、\\s]+")) {
+                if (token.length() >= 2 && historyTitle.contains(token)) {
+                    score += 2;
+                }
+            }
+        }
+        return score;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String fallback(String value, String fallback) {
@@ -271,5 +417,8 @@ public class AdviceServiceImpl implements AdviceService {
                 .replace("\r", "\\r")
                 .replace("\n", "\\n")
                 .replace("\t", "\\t");
+    }
+
+    private record AiSettings(String apiKey, String baseUrl, String model) {
     }
 }

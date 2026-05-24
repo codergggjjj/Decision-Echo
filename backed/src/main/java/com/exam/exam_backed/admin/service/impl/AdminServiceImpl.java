@@ -1,5 +1,6 @@
 package com.exam.exam_backed.admin.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.exam.exam_backed.admin.mapper.AdminMapper;
 import com.exam.exam_backed.admin.service.AdminService;
 import com.exam.exam_backed.admin.vo.AdminDecisionVO;
@@ -7,6 +8,10 @@ import com.exam.exam_backed.admin.vo.AdminStatsVO;
 import com.exam.exam_backed.admin.vo.AdminUserVO;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
+import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.mapper.DecisionMapper;
+import com.exam.exam_backed.user.User;
+import com.exam.exam_backed.user.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,24 +24,49 @@ public class AdminServiceImpl implements AdminService {
     private static final Set<String> ALLOWED_STATUS = Set.of("pending", "reviewed");
 
     private final AdminMapper adminMapper;
+    private final UserMapper userMapper;
+    private final DecisionMapper decisionMapper;
 
-    public AdminServiceImpl(AdminMapper adminMapper) {
+    public AdminServiceImpl(AdminMapper adminMapper, UserMapper userMapper, DecisionMapper decisionMapper) {
         this.adminMapper = adminMapper;
+        this.userMapper = userMapper;
+        this.decisionMapper = decisionMapper;
     }
 
     @Override
     public AdminStatsVO stats() {
         return new AdminStatsVO(
-                adminMapper.countUsers(),
-                adminMapper.countDecisions(),
-                adminMapper.countDecisionsByStatus("reviewed"),
-                adminMapper.countDecisionsByStatus("pending")
+                userMapper.selectCount(null).intValue(),
+                countDecisions(null),
+                countDecisions("reviewed"),
+                countDecisions("pending")
         );
     }
 
     @Override
     public List<AdminUserVO> users(String keyword, int limit) {
-        return adminMapper.findUsers(normalizeText(keyword), normalizeLimit(limit));
+        String normalizedKeyword = normalizeText(keyword);
+        QueryWrapper<User> query = new QueryWrapper<User>()
+                .orderByDesc("create_time", "id")
+                .last("LIMIT " + normalizeLimit(limit));
+        if (normalizedKeyword != null) {
+            query.and(wrapper -> wrapper
+                    .like("username", normalizedKeyword)
+                    .or()
+                    .like("nickname", normalizedKeyword));
+        }
+        return userMapper.selectList(query)
+                .stream()
+                .map(user -> new AdminUserVO(
+                        user.id(),
+                        user.username(),
+                        user.nickname(),
+                        user.avatarUrl(),
+                        user.status(),
+                        user.role(),
+                        user.createTime()
+                ))
+                .toList();
     }
 
     @Override
@@ -68,5 +98,13 @@ public class AdminServiceImpl implements AdminService {
             return DEFAULT_LIMIT;
         }
         return Math.min(limit, MAX_LIMIT);
+    }
+
+    private int countDecisions(String status) {
+        QueryWrapper<Decision> query = new QueryWrapper<Decision>().eq("deleted", 0);
+        if (status != null) {
+            query.eq("status", status);
+        }
+        return decisionMapper.selectCount(query).intValue();
     }
 }

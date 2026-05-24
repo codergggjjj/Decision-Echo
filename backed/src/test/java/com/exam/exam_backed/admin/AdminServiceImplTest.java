@@ -1,5 +1,7 @@
 package com.exam.exam_backed.admin;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.exam.exam_backed.admin.mapper.AdminMapper;
 import com.exam.exam_backed.admin.service.AdminService;
 import com.exam.exam_backed.admin.service.impl.AdminServiceImpl;
@@ -7,16 +9,26 @@ import com.exam.exam_backed.admin.vo.AdminDecisionVO;
 import com.exam.exam_backed.admin.vo.AdminStatsVO;
 import com.exam.exam_backed.admin.vo.AdminUserVO;
 import com.exam.exam_backed.common.BusinessException;
+import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.mapper.DecisionMapper;
+import com.exam.exam_backed.support.AbstractBaseMapperStub;
+import com.exam.exam_backed.user.User;
+import com.exam.exam_backed.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdminServiceImplTest {
     private final FakeAdminMapper adminMapper = new FakeAdminMapper();
-    private final AdminService adminService = new AdminServiceImpl(adminMapper);
+    private final FakeUserMapper userMapper = new FakeUserMapper();
+    private final FakeDecisionMapper decisionMapper = new FakeDecisionMapper();
+    private final AdminService adminService = new AdminServiceImpl(adminMapper, userMapper, decisionMapper);
 
     @Test
     void statsReturnsSiteWideCountsWithoutDeletedDecisions() {
@@ -33,8 +45,8 @@ class AdminServiceImplTest {
         List<AdminUserVO> users = adminService.users(" admin ", 200);
 
         assertEquals(List.of("admin"), users.stream().map(AdminUserVO::username).toList());
-        assertEquals(100, adminMapper.lastUserLimit);
-        assertEquals("admin", adminMapper.lastUserKeyword);
+        assertTrue(userMapper.lastSqlSegment.contains("LIMIT 100"));
+        assertEquals(List.of("%admin%", "%admin%"), userMapper.lastQueryParams);
     }
 
     @Test
@@ -57,39 +69,9 @@ class AdminServiceImplTest {
     }
 
     private static class FakeAdminMapper implements AdminMapper {
-        private int lastUserLimit;
-        private String lastUserKeyword;
         private int lastDecisionLimit;
         private String lastDecisionKeyword;
         private String lastDecisionStatus;
-
-        @Override
-        public int countUsers() {
-            return 3;
-        }
-
-        @Override
-        public int countDecisions() {
-            return 5;
-        }
-
-        @Override
-        public int countDecisionsByStatus(String status) {
-            return switch (status) {
-                case "reviewed" -> 2;
-                case "pending" -> 3;
-                default -> 0;
-            };
-        }
-
-        @Override
-        public List<AdminUserVO> findUsers(String keyword, int limit) {
-            lastUserKeyword = keyword;
-            lastUserLimit = limit;
-            return List.of(
-                    new AdminUserVO(2L, "admin", "管理员", null, 1, "admin", LocalDateTime.now())
-            );
-        }
 
         @Override
         public List<AdminDecisionVO> findDecisions(String keyword, String status, int limit) {
@@ -102,15 +84,76 @@ class AdminServiceImplTest {
                             1L,
                             "test_user",
                             "Weekend Course",
-                            "学习",
-                            "平静",
+                            "study",
+                            "calm",
                             2,
                             LocalDateTime.now().plusDays(7),
-                            "满意",
+                            "satisfied",
                             "reviewed",
                             LocalDateTime.now()
                     )
             );
+        }
+    }
+
+    private static class FakeUserMapper extends AbstractBaseMapperStub<User> implements UserMapper {
+        private String lastSqlSegment;
+        private List<Object> lastQueryParams = List.of();
+
+        @Override
+        public Long selectCount(Wrapper<User> queryWrapper) {
+            return 3L;
+        }
+
+        @Override
+        public List<User> selectList(Wrapper<User> queryWrapper) {
+            lastSqlSegment = queryWrapper.getSqlSegment();
+            if (queryWrapper instanceof QueryWrapper<User> query) {
+                lastQueryParams = new ArrayList<>(query.getParamNameValuePairs().values());
+            }
+            return List.of(
+                    new User(2L, "admin", "hash", "admin", null, 1, "admin", LocalDateTime.now())
+            );
+        }
+    }
+
+    private static class FakeDecisionMapper extends AbstractBaseMapperStub<Decision> implements DecisionMapper {
+        private int countCall;
+
+        @Override
+        public Long selectCount(Wrapper<Decision> queryWrapper) {
+            countCall++;
+            return switch (countCall) {
+                case 1 -> 5L;
+                case 2 -> 2L;
+                case 3 -> 3L;
+                default -> 0L;
+            };
+        }
+
+        @Override
+        public int countReviewedBySatisfactionAndFilters(Long userId, String satisfaction, String tag, String mood) {
+            throw unsupported();
+        }
+
+        @Override
+        public List<MoodSatisfactionCount> countReviewedByMoodAndSatisfaction(Long userId) {
+            throw unsupported();
+        }
+
+        @Override
+        public List<TrendCount> countCreatedByMonth(Long userId, LocalDateTime start, LocalDateTime end) {
+            throw unsupported();
+        }
+
+        @Override
+        public List<TrendCount> countCreatedByDay(Long userId, LocalDateTime start, LocalDateTime end) {
+            throw unsupported();
+        }
+
+        @Override
+        public List<String> findTagsByUserId(Long userId) {
+            throw unsupported();
         }
     }
 }

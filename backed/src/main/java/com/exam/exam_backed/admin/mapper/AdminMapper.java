@@ -1,7 +1,6 @@
 package com.exam.exam_backed.admin.mapper;
 
 import com.exam.exam_backed.admin.vo.AdminDecisionVO;
-import com.exam.exam_backed.admin.vo.AdminUserVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -10,31 +9,6 @@ import java.util.List;
 
 @Mapper
 public interface AdminMapper {
-    @Select("SELECT COUNT(*) FROM user")
-    int countUsers();
-
-    @Select("SELECT COUNT(*) FROM decision WHERE deleted = 0")
-    int countDecisions();
-
-    @Select("SELECT COUNT(*) FROM decision WHERE status = #{status} AND deleted = 0")
-    int countDecisionsByStatus(String status);
-
-    @Select("""
-            <script>
-            SELECT id, username, nickname, avatar_url AS avatarUrl, status, role, create_time AS createTime
-            FROM user
-            <where>
-              <if test="keyword != null and keyword != ''">
-                username LIKE CONCAT('%', #{keyword}, '%')
-                OR nickname LIKE CONCAT('%', #{keyword}, '%')
-              </if>
-            </where>
-            ORDER BY create_time DESC, id DESC
-            LIMIT #{limit}
-            </script>
-            """)
-    List<AdminUserVO> findUsers(@Param("keyword") String keyword, @Param("limit") int limit);
-
     @Select("""
             <script>
             SELECT d.id,

@@ -6,7 +6,6 @@ import com.exam.exam_backed.admin.vo.AdminDecisionVO;
 import com.exam.exam_backed.admin.vo.AdminStatsVO;
 import com.exam.exam_backed.admin.vo.AdminUserVO;
 import com.exam.exam_backed.common.Result;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,33 +23,31 @@ public class AdminController {
     }
 
     @GetMapping("/stats")
-    public Result<AdminStatsVO> stats(HttpServletRequest request) {
-        requireAdmin(request);
+    public Result<AdminStatsVO> stats() {
+        requireAdmin();
         return Result.success(adminService.stats());
     }
 
     @GetMapping("/users")
     public Result<List<AdminUserVO>> users(
-            HttpServletRequest request,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "50") int limit
     ) {
-        requireAdmin(request);
+        requireAdmin();
         return Result.success(adminService.users(keyword, limit));
     }
 
     @GetMapping("/decisions")
     public Result<List<AdminDecisionVO>> decisions(
-            HttpServletRequest request,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "50") int limit
     ) {
-        requireAdmin(request);
+        requireAdmin();
         return Result.success(adminService.decisions(keyword, status, limit));
     }
 
-    private void requireAdmin(HttpServletRequest request) {
+    private void requireAdmin() {
         StpUtil.checkRole("admin");
     }
 }
