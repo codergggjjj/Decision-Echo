@@ -7,6 +7,7 @@ import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.service.impl.DecisionServiceImpl;
+import com.exam.exam_backed.support.AbstractBaseMapperStub;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -446,7 +447,7 @@ class DecisionServiceImplTest {
         assertEquals("决策记录不存在", deleted.getMessage());
     }
 
-    private static class FakeDecisionMapper implements DecisionMapper {
+    private static class FakeDecisionMapper extends AbstractBaseMapperStub<Decision> implements DecisionMapper {
         private final AtomicLong idGenerator = new AtomicLong(1);
         private final List<Decision> decisions = new ArrayList<>();
         private final List<Long> deletedDecisionIds = new ArrayList<>();
@@ -460,13 +461,9 @@ class DecisionServiceImplTest {
 
         @Override
         public int insert(Decision decision) {
-            decisions.add(decision.withId(idGenerator.getAndIncrement()));
+            decision.setId(idGenerator.getAndIncrement());
+            decisions.add(decision);
             return 1;
-        }
-
-        @Override
-        public Long lastInsertedId() {
-            return idGenerator.get() - 1;
         }
 
         @Override

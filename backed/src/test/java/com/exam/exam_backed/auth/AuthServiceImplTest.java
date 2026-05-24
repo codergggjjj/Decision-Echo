@@ -4,13 +4,13 @@ import com.exam.exam_backed.auth.dto.LoginRequest;
 import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
 import com.exam.exam_backed.auth.dto.ProfileUpdateRequest;
 import com.exam.exam_backed.auth.dto.RegisterRequest;
+import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
-import com.exam.exam_backed.auth.service.TokenService;
 import com.exam.exam_backed.auth.service.impl.AuthServiceImpl;
 import com.exam.exam_backed.auth.service.impl.InMemoryCaptchaService;
-import com.exam.exam_backed.auth.service.impl.InMemoryTokenService;
 import com.exam.exam_backed.common.BusinessException;
+import com.exam.exam_backed.support.AbstractBaseMapperStub;
 import com.exam.exam_backed.user.User;
 import com.exam.exam_backed.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -27,12 +27,12 @@ class AuthServiceImplTest {
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final CaptchaService captchaService = new InMemoryCaptchaService();
-    private final TokenService tokenService = new InMemoryTokenService();
+    private final FakeAuthSessionService authSessionService = new FakeAuthSessionService();
     private final FakeUserMapper userMapper = new FakeUserMapper();
     private final AuthService authService = new AuthServiceImpl(
             userMapper,
             captchaService,
-            tokenService,
+            authSessionService,
             passwordEncoder
     );
 
@@ -50,7 +50,7 @@ class AuthServiceImplTest {
 
         assertNotNull(response.token());
         assertEquals("test_user", response.user().username());
-        assertTrue(tokenService.validate(response.token()).isPresent());
+        assertTrue(authSessionService.valid(response.token()));
     }
 
     @Test
@@ -114,7 +114,7 @@ class AuthServiceImplTest {
         assertEquals(1, saved.status());
         assertTrue(passwordEncoder.matches("NewUser123", saved.passwordHash()));
         assertEquals("new_user", response.user().username());
-        assertTrue(tokenService.validate(response.token()).isPresent());
+        assertTrue(authSessionService.valid(response.token()));
     }
 
     @Test
@@ -213,7 +213,42 @@ class AuthServiceImplTest {
         assertEquals("/uploads/avatars/a.png", currentUser.avatarUrl());
     }
 
-    private static class FakeUserMapper implements UserMapper {
+    private static class FakeAuthSessionService implements AuthSessionService {
+        private final Map<String, Long> sessions = new ConcurrentHashMap<>();
+        private long tokenSequence = 1L;
+        private Long currentUserId;
+
+        @Override
+        public String createToken(User user) {
+            String token = "token-" + tokenSequence++;
+            sessions.put(token, user.id());
+            currentUserId = user.id();
+            return token;
+        }
+
+        @Override
+        public Long currentUserId() {
+            return currentUserId;
+        }
+
+        @Override
+        public void checkLogin() {
+            if (currentUserId == null) {
+                throw new IllegalStateException("not login");
+            }
+        }
+
+        @Override
+        public void logout() {
+            currentUserId = null;
+        }
+
+        boolean valid(String token) {
+            return sessions.containsKey(token);
+        }
+    }
+
+    private static class FakeUserMapper extends AbstractBaseMapperStub<User> implements UserMapper {
         private final Map<String, User> users = new ConcurrentHashMap<>();
         private long nextId = 1L;
 

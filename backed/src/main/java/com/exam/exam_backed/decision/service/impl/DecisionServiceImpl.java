@@ -52,8 +52,7 @@ public class DecisionServiceImpl implements DecisionService {
                 LocalDateTime.now()
         );
         decisionMapper.insert(decision);
-        Long id = decisionMapper.lastInsertedId();
-        return decisionMapper.findByIdAndUserId(id, userId).orElse(decision.withId(id));
+        return decisionMapper.findByIdAndUserId(decision.id(), userId).orElse(decision);
     }
 
     @Override

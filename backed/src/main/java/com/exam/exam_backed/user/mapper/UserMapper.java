@@ -1,68 +1,37 @@
 package com.exam.exam_backed.user.mapper;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.exam.exam_backed.user.User;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.util.Optional;
 
 @Mapper
-public interface UserMapper {
-    @Select("""
-            SELECT
-                id,
-                username,
-                password_hash AS passwordHash,
-                nickname,
-                avatar_url AS avatarUrl,
-                status,
-                role,
-                create_time AS createTime
-            FROM user
-            WHERE username = #{username}
-            LIMIT 1
-            """)
-    Optional<User> findByUsername(String username);
+public interface UserMapper extends BaseMapper<User> {
+    default Optional<User> findByUsername(String username) {
+        return Optional.ofNullable(selectOne(new QueryWrapper<User>()
+                .eq("username", username)
+                .last("LIMIT 1")));
+    }
 
-    @Select("""
-            SELECT
-                id,
-                username,
-                password_hash AS passwordHash,
-                nickname,
-                avatar_url AS avatarUrl,
-                status,
-                role,
-                create_time AS createTime
-            FROM user
-            WHERE id = #{id}
-            LIMIT 1
-            """)
-    Optional<User> findById(Long id);
+    default Optional<User> findById(Long id) {
+        return Optional.ofNullable(selectById(id));
+    }
 
-    @Insert("""
-            INSERT INTO user (username, password_hash, nickname, avatar_url, status, role)
-            VALUES (#{username}, #{passwordHash}, #{nickname}, #{avatarUrl}, #{status}, #{role})
-            """)
-    int insert(User user);
+    default int updatePassword(Long id, String passwordHash) {
+        return update(new UpdateWrapper<User>()
+                .eq("id", id)
+                .set("password_hash", passwordHash)
+                .setSql("update_time = NOW()"));
+    }
 
-    @Update("""
-            UPDATE user
-            SET password_hash = #{passwordHash},
-                update_time = NOW()
-            WHERE id = #{id}
-            """)
-    int updatePassword(@Param("id") Long id, @Param("passwordHash") String passwordHash);
-
-    @Update("""
-            UPDATE user
-            SET nickname = #{nickname},
-                avatar_url = #{avatarUrl},
-                update_time = NOW()
-            WHERE id = #{id}
-            """)
-    int updateProfile(@Param("id") Long id, @Param("nickname") String nickname, @Param("avatarUrl") String avatarUrl);
+    default int updateProfile(Long id, String nickname, String avatarUrl) {
+        return update(new UpdateWrapper<User>()
+                .eq("id", id)
+                .set("nickname", nickname)
+                .set("avatar_url", avatarUrl)
+                .setSql("update_time = NOW()"));
+    }
 }

@@ -1,8 +1,6 @@
 package com.exam.exam_backed.decision.controller;
 
-import com.exam.exam_backed.auth.service.TokenService;
-import com.exam.exam_backed.common.BusinessException;
-import com.exam.exam_backed.common.ErrorCode;
+import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.common.Result;
 import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
@@ -28,11 +26,11 @@ import java.util.List;
 @RequestMapping("/api/decisions")
 public class DecisionController {
     private final DecisionService decisionService;
-    private final TokenService tokenService;
+    private final AuthSessionService authSessionService;
 
-    public DecisionController(DecisionService decisionService, TokenService tokenService) {
+    public DecisionController(DecisionService decisionService, AuthSessionService authSessionService) {
         this.decisionService = decisionService;
-        this.tokenService = tokenService;
+        this.authSessionService = authSessionService;
     }
 
     @GetMapping("/dashboard")
@@ -77,16 +75,6 @@ public class DecisionController {
     }
 
     private Long currentUserId(HttpServletRequest request) {
-        return tokenService.validate(extractToken(request))
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"))
-                .id();
-    }
-
-    private String extractToken(HttpServletRequest request) {
-        String authorization = request.getHeader("Authorization");
-        if (authorization != null && authorization.startsWith("Bearer ")) {
-            return authorization.substring(7);
-        }
-        return authorization;
+        return authSessionService.currentUserId();
     }
 }

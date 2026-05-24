@@ -1,7 +1,7 @@
 package com.exam.exam_backed.decision.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.exam.exam_backed.decision.Decision;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,22 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Mapper
-public interface DecisionMapper {
-    @Insert("""
-            INSERT INTO decision (
-                user_id, title, context, `options`, reason, tags, mood, urgency,
-                review_time, satisfaction, feedback, status
-            )
-            VALUES (
-                #{userId}, #{title}, #{context}, #{options}, #{reason}, #{tags}, #{mood}, #{urgency},
-                #{reviewTime}, #{satisfaction}, #{feedback}, #{status}
-            )
-            """)
-    int insert(Decision decision);
-
-    @Select("SELECT LAST_INSERT_ID()")
-    Long lastInsertedId();
-
+public interface DecisionMapper extends BaseMapper<Decision> {
     @Select("""
             SELECT id, user_id AS userId, title, context, `options`, reason, tags, mood, urgency,
                    review_time AS reviewTime, satisfaction, feedback, status,

@@ -4,9 +4,9 @@ import com.exam.exam_backed.auth.dto.LoginRequest;
 import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
 import com.exam.exam_backed.auth.dto.ProfileUpdateRequest;
 import com.exam.exam_backed.auth.dto.RegisterRequest;
+import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
-import com.exam.exam_backed.auth.service.TokenService;
 import com.exam.exam_backed.auth.vo.CaptchaResponse;
 import com.exam.exam_backed.auth.vo.LoginResponse;
 import com.exam.exam_backed.auth.vo.UserVO;
@@ -35,12 +35,12 @@ import java.util.UUID;
 public class AuthController {
     private final AuthService authService;
     private final CaptchaService captchaService;
-    private final TokenService tokenService;
+    private final AuthSessionService authSessionService;
 
-    public AuthController(AuthService authService, CaptchaService captchaService, TokenService tokenService) {
+    public AuthController(AuthService authService, CaptchaService captchaService, AuthSessionService authSessionService) {
         this.authService = authService;
         this.captchaService = captchaService;
-        this.tokenService = tokenService;
+        this.authSessionService = authSessionService;
     }
 
     @GetMapping("/captcha")
@@ -75,14 +75,14 @@ public class AuthController {
     ) {
         currentUserId(request);
         if (file.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "头像文件不能为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "澶村儚鏂囦欢涓嶈兘涓虹┖");
         }
         if (file.getSize() > 2 * 1024 * 1024) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "头像文件不能超过2MB");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "澶村儚鏂囦欢涓嶈兘瓒呰繃2MB");
         }
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "只能上传图片文件");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "鍙兘涓婁紶鍥剧墖鏂囦欢");
         }
         String originalFilename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
         String extension = extensionOf(originalFilename, contentType);
@@ -93,7 +93,7 @@ public class AuthController {
             file.transferTo(uploadDir.resolve(filename));
             return Result.success(Map.of("avatarUrl", "/uploads/avatars/" + filename));
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "头像上传失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "澶村儚涓婁紶澶辫触");
         }
     }
 
@@ -102,34 +102,20 @@ public class AuthController {
             HttpServletRequest request,
             @Valid @RequestBody PasswordChangeRequest passwordChangeRequest
     ) {
-        String token = extractToken(request);
-        Long userId = tokenService.validate(token)
-                .map(UserVO::from)
-                .map(UserVO::id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"));
+        Long userId = currentUserId(request);
         authService.changePassword(userId, passwordChangeRequest);
-        tokenService.revoke(token);
+        authSessionService.logout();
         return Result.success(null);
     }
 
     @PostMapping("/logout")
     public Result<Void> logout(HttpServletRequest request) {
-        tokenService.revoke(extractToken(request));
+        authSessionService.logout();
         return Result.success(null);
     }
 
-    private String extractToken(HttpServletRequest request) {
-        String authorization = request.getHeader("Authorization");
-        if (authorization != null && authorization.startsWith("Bearer ")) {
-            return authorization.substring(7);
-        }
-        return authorization;
-    }
-
     private Long currentUserId(HttpServletRequest request) {
-        return tokenService.validate(extractToken(request))
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录"))
-                .id();
+        return authSessionService.currentUserId();
     }
 
     private String extensionOf(String filename, String contentType) {

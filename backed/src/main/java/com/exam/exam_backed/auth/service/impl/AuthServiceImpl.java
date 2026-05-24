@@ -4,9 +4,9 @@ import com.exam.exam_backed.auth.dto.LoginRequest;
 import com.exam.exam_backed.auth.dto.PasswordChangeRequest;
 import com.exam.exam_backed.auth.dto.ProfileUpdateRequest;
 import com.exam.exam_backed.auth.dto.RegisterRequest;
+import com.exam.exam_backed.auth.service.AuthSessionService;
 import com.exam.exam_backed.auth.service.AuthService;
 import com.exam.exam_backed.auth.service.CaptchaService;
-import com.exam.exam_backed.auth.service.TokenService;
 import com.exam.exam_backed.auth.vo.LoginResponse;
 import com.exam.exam_backed.auth.vo.UserVO;
 import com.exam.exam_backed.common.BusinessException;
@@ -21,18 +21,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final CaptchaService captchaService;
-    private final TokenService tokenService;
+    private final AuthSessionService authSessionService;
     private final PasswordEncoder passwordEncoder;
 
     public AuthServiceImpl(
             UserMapper userMapper,
             CaptchaService captchaService,
-            TokenService tokenService,
+            AuthSessionService authSessionService,
             PasswordEncoder passwordEncoder
     ) {
         this.userMapper = userMapper;
         this.captchaService = captchaService;
-        this.tokenService = tokenService;
+        this.authSessionService = authSessionService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -50,7 +50,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "账号已禁用");
         }
 
-        return new LoginResponse(tokenService.createToken(user), UserVO.from(user));
+        return new LoginResponse(authSessionService.createToken(user), UserVO.from(user));
     }
 
     @Override
@@ -75,7 +75,7 @@ public class AuthServiceImpl implements AuthService {
         userMapper.insert(user);
         User saved = userMapper.findByUsername(request.username())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败"));
-        return new LoginResponse(tokenService.createToken(saved), UserVO.from(saved));
+        return new LoginResponse(authSessionService.createToken(saved), UserVO.from(saved));
     }
 
     @Override
