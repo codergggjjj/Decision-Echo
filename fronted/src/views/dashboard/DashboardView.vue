@@ -12,13 +12,15 @@
         </nav>
         <div class="avatar-menu">
           <button type="button" class="avatar-nav-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-            <span v-else>{{ avatarInitial }}</span>
+            <span class="avatar-frame">
+              <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
+              <span v-else>{{ avatarInitial }}</span>
+            </span>
+            <span class="avatar-chevron" aria-hidden="true"></span>
           </button>
-          <div class="avatar-dropdown">
-            <button type="button" @click="goProfile">个人中心</button>
-            <button type="button" @click="handleLogout">退出登录</button>
-          </div>
+          <button type="button" class="top-icon-button logout-icon-button" aria-label="退出登录" title="退出登录" @click="handleLogout">
+            <span class="logout-icon" aria-hidden="true"></span>
+          </button>
         </div>
       </div>
     </header>
@@ -356,7 +358,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailDialogVisible" class="youth-dialog decision-detail-dialog" title="决策详情" width="620px">
+    <el-dialog v-model="detailDialogVisible" align-center class="youth-dialog decision-detail-dialog" title="Decision Details" width="640px">
       <div v-if="detailLoading" class="detail-loading">正在加载...</div>
       <div v-else-if="decisionDetail" class="decision-detail-content">
         <section class="detail-title-block">
