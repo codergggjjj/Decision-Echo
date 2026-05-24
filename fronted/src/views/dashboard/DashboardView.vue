@@ -94,7 +94,7 @@
             @keydown.enter.self="openDetail(decision)"
           >
             <div class="memory-date">
-              <span>{{ formatDate(decision.reviewTime).slice(5, 10) }}</span>
+              <span>{{ formatDate(decision.reviewTime).slice(0, 10) }}</span>
               <small>{{ urgencyText(decision.urgency) }}</small>
             </div>
             <div class="memory-body">
@@ -111,7 +111,6 @@
                 </button>
               </div>
               <h3>{{ decision.title }}</h3>
-              <p>{{ decision.context || decision.reason || '这条记录还没有补充更多内容。' }}</p>
               <div v-if="optionSummary(decision.options).selected" class="selected-option-preview">
                 <span>最终选择</span>
                 <strong>{{ optionSummary(decision.options).selected }}</strong>
@@ -132,7 +131,6 @@
                 </div>
               </div>
               <div class="memory-foot">
-                <span>回看时间 {{ formatDate(decision.reviewTime) }}</span>
                 <div class="memory-foot-actions">
                   <button type="button" class="inline-detail" @click.stop="openDetail(decision)">查看详情</button>
                   <button type="button" class="inline-delete" :disabled="deletingDecisionId === decision.id" @click.stop="confirmDelete(decision)">删除</button>
