@@ -94,7 +94,10 @@
             @keydown.enter.self="openDetail(decision)"
           >
             <div class="memory-date">
-              <span>{{ formatDate(decision.reviewTime).slice(0, 10) }}</span>
+              <span>
+                <b>{{ formatDate(decision.reviewTime).slice(0, 5) }}</b>
+                <b>{{ formatDate(decision.reviewTime).slice(5, 10) }}</b>
+              </span>
               <small>{{ urgencyText(decision.urgency) }}</small>
             </div>
             <div class="memory-body">
