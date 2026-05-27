@@ -16,5 +16,6 @@ export const API_PATHS = {
   decisions: '/api/decisions',
   adminStats: '/api/admin/stats',
   adminUsers: '/api/admin/users',
-  adminDecisions: '/api/admin/decisions'
+  adminDecisions: '/api/admin/decisions',
+  adminResetPassword: '/api/admin/users'
 }

@@ -242,7 +242,7 @@ async function submitLogin() {
   try {
     await authStore.login({ ...loginForm })
     ElMessage.success('登录成功')
-    router.push('/dashboard')
+    router.push(authStore.isAdmin ? '/admin' : '/dashboard')
   } catch (error) {
     await refreshCaptcha()
   } finally {

@@ -12,3 +12,7 @@ export function getAdminUsers(params) {
 export function getAdminDecisions(params) {
   return request.get(API_PATHS.adminDecisions, { params })
 }
+
+export function resetAdminUserPassword(id) {
+  return request.put(`${API_PATHS.adminResetPassword}/${id}/password/reset`)
+}

@@ -15,6 +15,8 @@ import com.exam.exam_backed.support.AbstractBaseMapperStub;
 import com.exam.exam_backed.user.User;
 import com.exam.exam_backed.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,7 +30,8 @@ class AdminServiceImplTest {
     private final FakeAdminMapper adminMapper = new FakeAdminMapper();
     private final FakeUserMapper userMapper = new FakeUserMapper();
     private final FakeDecisionMapper decisionMapper = new FakeDecisionMapper();
-    private final AdminService adminService = new AdminServiceImpl(adminMapper, userMapper, decisionMapper);
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final AdminService adminService = new AdminServiceImpl(adminMapper, userMapper, decisionMapper, passwordEncoder);
 
     @Test
     void statsReturnsSiteWideCountsWithoutDeletedDecisions() {
@@ -68,6 +71,14 @@ class AdminServiceImplTest {
         assertEquals("reviewed", adminMapper.lastDecisionStatus);
     }
 
+    @Test
+    void resetPasswordSetsUserPasswordToInitialPassword() {
+        adminService.resetPassword(7L);
+
+        assertEquals(7L, userMapper.updatedUserId);
+        assertTrue(passwordEncoder.matches("123456", userMapper.updatedPasswordHash));
+    }
+
     private static class FakeAdminMapper implements AdminMapper {
         private int lastDecisionLimit;
         private String lastDecisionKeyword;
@@ -99,6 +110,8 @@ class AdminServiceImplTest {
     private static class FakeUserMapper extends AbstractBaseMapperStub<User> implements UserMapper {
         private String lastSqlSegment;
         private List<Object> lastQueryParams = List.of();
+        private Long updatedUserId;
+        private String updatedPasswordHash;
 
         @Override
         public Long selectCount(Wrapper<User> queryWrapper) {
@@ -114,6 +127,13 @@ class AdminServiceImplTest {
             return List.of(
                     new User(2L, "admin", "hash", "admin", null, 1, "admin", LocalDateTime.now())
             );
+        }
+
+        @Override
+        public int updatePassword(Long id, String passwordHash) {
+            updatedUserId = id;
+            updatedPasswordHash = passwordHash;
+            return 1;
         }
     }
 

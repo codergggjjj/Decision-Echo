@@ -6,7 +6,7 @@
         <h1>全站数据总览</h1>
         <p>查看用户与决策记录的基础运营数据。</p>
       </div>
-      <button type="button" class="admin-back-button" @click="goDashboard">返回首页</button>
+      <button type="button" class="admin-logout-button" @click="handleLogout">退出登录</button>
     </header>
 
     <section class="admin-stats" v-loading="loading.stats">
@@ -44,6 +44,11 @@
             <el-table-column label="注册时间" min-width="170">
               <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
             </el-table-column>
+            <el-table-column label="操作" width="130" fixed="right">
+              <template #default="{ row }">
+                <el-button type="warning" link @click="handleResetPassword(row)">重置密码</el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </el-tab-pane>
 
@@ -79,11 +84,14 @@
 </template>
 
 <script setup>
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAdminDecisions, getAdminStats, getAdminUsers } from '../../api/admin'
+import { getAdminDecisions, getAdminStats, getAdminUsers, resetAdminUserPassword } from '../../api/admin'
+import { useAuthStore } from '../../store/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const activeTab = ref('users')
 const userKeyword = ref('')
 const decisionKeyword = ref('')
@@ -109,15 +117,16 @@ const statCards = computed(() => [
   { label: '待回测数量', value: stats.pendingTotal }
 ])
 
-function goDashboard() {
-  router.push('/dashboard')
-}
-
 function formatDate(value) {
   if (!value) {
     return '-'
   }
   return String(value).replace('T', ' ').slice(0, 16)
+}
+
+async function handleLogout() {
+  await authStore.logout()
+  router.push('/login')
 }
 
 async function loadStats() {
@@ -139,6 +148,20 @@ async function loadUsers() {
   } finally {
     loading.users = false
   }
+}
+
+async function handleResetPassword(row) {
+  await ElMessageBox.confirm(
+    `确定将用户「${row.username}」的密码重置为初始密码 123456 吗？`,
+    '重置密码',
+    {
+      confirmButtonText: '确认重置',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  )
+  await resetAdminUserPassword(row.id)
+  ElMessage.success('密码已重置为 123456')
 }
 
 async function loadDecisions() {
@@ -201,15 +224,15 @@ onMounted(() => {
   color: #64748b;
 }
 
-.admin-back-button {
+.admin-logout-button {
   border: 0;
   border-radius: 18px;
   padding: 12px 18px;
   color: #ffffff;
-  background: #38bdf8;
+  background: #fb7185;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(56, 189, 248, 0.24);
+  box-shadow: 0 12px 24px rgba(251, 113, 133, 0.22);
 }
 
 .admin-stats,

@@ -3014,19 +3014,19 @@ body {
   position: absolute;
   top: 24px;
   left: -9px;
-  z-index: -1;
+  z-index: 0;
   width: 22px;
   height: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-top: 0;
-  border-right: 0;
   border-radius: 5px 0 0 0;
   background:
     linear-gradient(105deg, rgba(255, 255, 255, 0.5), rgba(211, 248, 255, 0.38) 38%, rgba(235, 255, 255, 0.24) 62%, rgba(255, 222, 239, 0.38)),
     rgba(255, 255, 255, 0.18);
-  box-shadow: -10px 14px 28px rgba(48, 62, 88, 0.08);
-  backdrop-filter: blur(22px) saturate(1.18);
   transform: rotate(45deg);
+}
+
+.content-first-dashboard .memory-body > * {
+  position: relative;
+  z-index: 1;
 }
 
 .content-first-dashboard .memory-item:hover .memory-body {
@@ -3037,10 +3037,6 @@ body {
   transform: translateY(-3px);
 }
 
-.content-first-dashboard .memory-item:hover .memory-body::before {
-  border-color: rgba(255, 255, 255, 0.92);
-}
-
 .content-first-dashboard .memory-body h3 {
   margin-top: 10px;
 }
@@ -3048,6 +3044,191 @@ body {
 .content-first-dashboard .memory-foot {
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+/* Dashboard button polish */
+.content-first-dashboard {
+  --dashboard-button-border: rgba(255, 255, 255, 0.72);
+  --dashboard-button-surface: rgba(255, 255, 255, 0.46);
+  --dashboard-button-text: #1b3346;
+  --dashboard-button-shadow: 0 12px 28px rgba(51, 73, 101, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.74);
+  --dashboard-button-focus: 0 0 0 3px rgba(116, 216, 242, 0.34), 0 12px 28px rgba(51, 73, 101, 0.14);
+}
+
+.content-first-dashboard .top-view-nav button,
+.content-first-dashboard .avatar-nav-button,
+.content-first-dashboard .top-icon-button,
+.content-first-dashboard .decision-status-filter button,
+.content-first-dashboard .decision-search-buttons .el-button,
+.content-first-dashboard .featured-review,
+.content-first-dashboard .inline-detail,
+.content-first-dashboard .inline-delete,
+.content-first-dashboard .review-ticket button,
+.content-first-dashboard .floating-create {
+  border: 1px solid var(--dashboard-button-border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(218, 248, 255, 0.34) 52%, rgba(255, 227, 241, 0.38)),
+    var(--dashboard-button-surface);
+  color: var(--dashboard-button-text);
+  box-shadow: var(--dashboard-button-shadow);
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+  touch-action: manipulation;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.content-first-dashboard .top-view-nav button:hover,
+.content-first-dashboard .avatar-nav-button:hover,
+.content-first-dashboard .top-icon-button:hover,
+.content-first-dashboard .decision-status-filter button:hover,
+.content-first-dashboard .decision-search-buttons .el-button:hover,
+.content-first-dashboard .featured-review:hover,
+.content-first-dashboard .inline-detail:hover,
+.content-first-dashboard .inline-delete:hover:not(:disabled),
+.content-first-dashboard .review-ticket button:hover,
+.content-first-dashboard .floating-create:hover {
+  border-color: rgba(255, 255, 255, 0.94);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(211, 248, 255, 0.48) 50%, rgba(255, 217, 237, 0.5)),
+    rgba(255, 255, 255, 0.52);
+  box-shadow:
+    0 18px 34px rgba(51, 73, 101, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  transform: translateY(-1px);
+}
+
+.content-first-dashboard .top-view-nav button:active,
+.content-first-dashboard .avatar-nav-button:active,
+.content-first-dashboard .top-icon-button:active,
+.content-first-dashboard .decision-status-filter button:active,
+.content-first-dashboard .decision-search-buttons .el-button:active,
+.content-first-dashboard .featured-review:active,
+.content-first-dashboard .inline-detail:active,
+.content-first-dashboard .inline-delete:active:not(:disabled),
+.content-first-dashboard .review-ticket button:active,
+.content-first-dashboard .floating-create:active {
+  box-shadow:
+    0 8px 18px rgba(51, 73, 101, 0.12),
+    inset 0 2px 8px rgba(61, 89, 115, 0.1);
+  transform: translateY(1px) scale(0.98);
+}
+
+.content-first-dashboard .top-view-nav button:focus-visible,
+.content-first-dashboard .avatar-nav-button:focus-visible,
+.content-first-dashboard .top-icon-button:focus-visible,
+.content-first-dashboard .decision-status-filter button:focus-visible,
+.content-first-dashboard .decision-search-buttons .el-button:focus-visible,
+.content-first-dashboard .featured-review:focus-visible,
+.content-first-dashboard .inline-detail:focus-visible,
+.content-first-dashboard .inline-delete:focus-visible,
+.content-first-dashboard .review-ticket button:focus-visible,
+.content-first-dashboard .floating-create:focus-visible {
+  outline: none;
+  box-shadow: var(--dashboard-button-focus);
+}
+
+.content-first-dashboard .top-view-nav button.active,
+.content-first-dashboard .decision-status-filter button.active,
+.content-first-dashboard .decision-search-buttons .search-submit,
+.content-first-dashboard .featured-review,
+.content-first-dashboard .review-ticket button,
+.content-first-dashboard .floating-create {
+  border-color: rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(135deg, rgba(255, 118, 167, 0.96), rgba(255, 154, 194, 0.9) 46%, rgba(126, 219, 241, 0.82)),
+    rgba(255, 255, 255, 0.34);
+  color: #ffffff;
+  box-shadow:
+    0 18px 36px rgba(251, 114, 153, 0.24),
+    0 8px 18px rgba(0, 174, 236, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.content-first-dashboard .top-view-nav button.active:hover,
+.content-first-dashboard .decision-status-filter button.active:hover,
+.content-first-dashboard .decision-search-buttons .search-submit:hover,
+.content-first-dashboard .featured-review:hover,
+.content-first-dashboard .review-ticket button:hover,
+.content-first-dashboard .floating-create:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 103, 159, 0.98), rgba(255, 147, 190, 0.94) 46%, rgba(105, 211, 238, 0.88)),
+    rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 22px 42px rgba(251, 114, 153, 0.3),
+    0 10px 22px rgba(0, 174, 236, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+.content-first-dashboard .decision-search-buttons .el-button:not(.search-submit),
+.content-first-dashboard .inline-detail {
+  border-color: rgba(255, 255, 255, 0.76);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(223, 250, 255, 0.38)),
+    rgba(255, 255, 255, 0.44);
+  color: rgba(27, 51, 70, 0.82);
+}
+
+.content-first-dashboard .inline-delete {
+  border-color: rgba(255, 146, 158, 0.38);
+  background:
+    linear-gradient(135deg, rgba(255, 250, 250, 0.74), rgba(255, 224, 229, 0.58)),
+    rgba(255, 244, 246, 0.48);
+  color: #bf3e52;
+  box-shadow:
+    0 12px 26px rgba(214, 77, 96, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.content-first-dashboard .inline-delete:hover:not(:disabled) {
+  border-color: rgba(255, 121, 141, 0.52);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 210, 219, 0.68)),
+    rgba(255, 239, 243, 0.58);
+  color: #aa3045;
+  box-shadow:
+    0 16px 30px rgba(214, 77, 96, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.content-first-dashboard .top-icon-button.logout-icon-button {
+  color: #bf3e52;
+}
+
+.content-first-dashboard .top-icon-button.logout-icon-button:hover,
+.content-first-dashboard .top-icon-button.logout-icon-button:focus-visible {
+  border-color: rgba(255, 146, 158, 0.42);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 224, 229, 0.48)),
+    rgba(255, 244, 246, 0.46);
+  color: #aa3045;
+}
+
+.content-first-dashboard .decision-search-buttons .el-button.is-disabled,
+.content-first-dashboard .decision-search-buttons .el-button.is-disabled:hover,
+.content-first-dashboard .decision-search-buttons .el-button:disabled,
+.content-first-dashboard .inline-delete:disabled,
+.content-first-dashboard .inline-delete:disabled:hover {
+  border-color: rgba(166, 185, 202, 0.26);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(229, 238, 246, 0.28)),
+    rgba(255, 255, 255, 0.28);
+  color: rgba(63, 82, 101, 0.42);
+  cursor: not-allowed;
+  opacity: 0.72;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54);
+  transform: none;
+}
+
+.content-first-dashboard .floating-create strong {
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.82);
+  color: #f05a91;
 }
 
 @media (max-width: 900px) {
@@ -3128,6 +3309,22 @@ body {
     bottom: 18px;
     left: auto;
     max-width: calc(100vw - 28px);
+  }
+
+  .content-first-dashboard .top-view-nav,
+  .content-first-dashboard .decision-status-filter,
+  .content-first-dashboard .decision-search-buttons,
+  .content-first-dashboard .memory-foot-actions {
+    min-width: 0;
+  }
+
+  .content-first-dashboard .decision-status-filter button,
+  .content-first-dashboard .decision-search-buttons .el-button,
+  .content-first-dashboard .inline-detail,
+  .content-first-dashboard .inline-delete,
+  .content-first-dashboard .review-ticket button {
+    min-height: 44px;
+    white-space: normal;
   }
 }
 

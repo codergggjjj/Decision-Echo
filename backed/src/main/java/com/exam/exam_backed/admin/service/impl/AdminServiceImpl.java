@@ -12,6 +12,7 @@ import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.user.User;
 import com.exam.exam_backed.user.mapper.UserMapper;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,11 +27,18 @@ public class AdminServiceImpl implements AdminService {
     private final AdminMapper adminMapper;
     private final UserMapper userMapper;
     private final DecisionMapper decisionMapper;
+    private final PasswordEncoder passwordEncoder;
 
-    public AdminServiceImpl(AdminMapper adminMapper, UserMapper userMapper, DecisionMapper decisionMapper) {
+    public AdminServiceImpl(
+            AdminMapper adminMapper,
+            UserMapper userMapper,
+            DecisionMapper decisionMapper,
+            PasswordEncoder passwordEncoder
+    ) {
         this.adminMapper = adminMapper;
         this.userMapper = userMapper;
         this.decisionMapper = decisionMapper;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -73,6 +81,14 @@ public class AdminServiceImpl implements AdminService {
     public List<AdminDecisionVO> decisions(String keyword, String status, int limit) {
         String normalizedStatus = normalizeStatus(status);
         return adminMapper.findDecisions(normalizeText(keyword), normalizedStatus, normalizeLimit(limit));
+    }
+
+    @Override
+    public void resetPassword(Long userId) {
+        int updated = userMapper.updatePassword(userId, passwordEncoder.encode("123456"));
+        if (updated <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "用户不存在");
+        }
     }
 
     private String normalizeText(String value) {

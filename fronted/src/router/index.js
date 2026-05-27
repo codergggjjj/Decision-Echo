@@ -62,8 +62,11 @@ router.beforeEach((to) => {
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return '/403'
   }
+  if (authStore.isAdmin && to.meta.requiresAuth && !to.meta.requiresAdmin) {
+    return '/admin'
+  }
   if (to.path === '/login' && authStore.isLoggedIn) {
-    return '/dashboard'
+    return authStore.isAdmin ? '/admin' : '/dashboard'
   }
   return true
 })

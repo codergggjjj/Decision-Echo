@@ -7,6 +7,8 @@ import com.exam.exam_backed.admin.vo.AdminStatsVO;
 import com.exam.exam_backed.admin.vo.AdminUserVO;
 import com.exam.exam_backed.common.Result;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,6 +47,13 @@ public class AdminController {
     ) {
         requireAdmin();
         return Result.success(adminService.decisions(keyword, status, limit));
+    }
+
+    @PutMapping("/users/{id}/password/reset")
+    public Result<Void> resetPassword(@PathVariable Long id) {
+        requireAdmin();
+        adminService.resetPassword(id);
+        return Result.success(null);
     }
 
     private void requireAdmin() {

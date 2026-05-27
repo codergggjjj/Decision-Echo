@@ -12,4 +12,6 @@ public interface AdminService {
     List<AdminUserVO> users(String keyword, int limit);
 
     List<AdminDecisionVO> decisions(String keyword, String status, int limit);
+
+    void resetPassword(Long userId);
 }
