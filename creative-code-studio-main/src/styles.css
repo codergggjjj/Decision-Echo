@@ -4,6 +4,41 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --font-jakarta: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-df-on-background: #191c1e;
+  --color-df-primary: #9e3a68;
+  --color-df-on-primary: #ffffff;
+  --color-df-primary-container: #f47fb0;
+  --color-df-on-primary-container: #701343;
+  --color-df-on-primary-fixed-variant: #802150;
+  --color-df-secondary: #0060ac;
+  --color-df-secondary-container: #64a8fe;
+  --color-df-on-secondary-container: #003c70;
+  --color-df-tertiary: #795900;
+  --color-df-tertiary-container: #d29d00;
+  --color-df-on-tertiary-container: #4d3800;
+  --color-df-error-container: #ffdad6;
+  --color-df-on-error-container: #93000a;
+  --color-df-surface: #f7f9fb;
+  --color-df-on-surface: #191c1e;
+  --color-df-on-surface-variant: #544248;
+  --color-df-surface-variant: #e0e3e5;
+  --color-df-surface-container-lowest: #ffffff;
+  --color-df-surface-container-low: #f2f4f6;
+  --color-df-surface-container: #eceef0;
+  --color-df-surface-container-high: #e6e8ea;
+  --color-df-outline: #877278;
+  --color-df-outline-variant: #d9c0c7;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
+
 /*
  * Design system definition.
  *
@@ -138,34 +173,7 @@
   }
 
   body {
-    background-color: #F4F5F7;
-    color: #191c1e;
-    font-family: 'Noto Sans SC', sans-serif;
-    -webkit-font-smoothing: antialiased;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
   }
 }
-
-@layer utilities {
-  .material-symbols-outlined {
-    font-family: 'Material Symbols Outlined';
-    font-weight: normal;
-    font-style: normal;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-feature-settings: 'liga';
-    -webkit-font-smoothing: antialiased;
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  }
-  .icon-fill { font-variation-settings: 'FILL' 1; }
-  .soft-shadow { box-shadow: 0px 4px 20px rgba(0, 161, 214, 0.08); }
-  .shadow-glow-blue { box-shadow: 0 10px 40px -10px rgba(0, 161, 214, 0.25); }
-  .shadow-glow-pink { box-shadow: 0 10px 40px -10px rgba(251, 114, 153, 0.25); }
-  .hide-scrollbar::-webkit-scrollbar { display: none; }
-  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-}
-

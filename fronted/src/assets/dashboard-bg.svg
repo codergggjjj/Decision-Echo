@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" fill="none">
+  <defs>
+    <linearGradient id="base" x1="0" y1="18" x2="1866" y2="1060" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE3EF"/>
+      <stop offset="0.28" stop-color="#FFF7FB"/>
+      <stop offset="0.58" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCEEFF"/>
+    </linearGradient>
+    <radialGradient id="topPink" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(62 -42) rotate(79) scale(332 392)">
+      <stop stop-color="#FFA9CA" stop-opacity="0.55"/>
+      <stop offset="0.58" stop-color="#FFD9E8" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="leftPink" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(156 1030) rotate(-54) scale(372 596)">
+      <stop stop-color="#F4A2C6" stop-opacity="0.32"/>
+      <stop offset="0.6" stop-color="#F9D9E8" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rightBlue" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1888 1046) rotate(-143) scale(662 760)">
+      <stop stop-color="#8BBFFF" stop-opacity="0.58"/>
+      <stop offset="0.52" stop-color="#BFDFFF" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blurDot" x="-80%" y="-80%" width="260%" height="260%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <pattern id="pinkDots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="2" fill="#F6A4C7" fill-opacity="0.38"/>
+    </pattern>
+    <pattern id="blueDots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="2" fill="#A7CFFF" fill-opacity="0.46"/>
+    </pattern>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#base)"/>
+  <rect width="1920" height="1080" fill="url(#topPink)"/>
+  <rect width="1920" height="1080" fill="url(#leftPink)"/>
+  <rect width="1920" height="1080" fill="url(#rightBlue)"/>
+
+  <path d="M-168 235C42 266 251 127 316 -96" stroke="#FFFFFF" stroke-opacity="0.58" stroke-width="3"/>
+  <path d="M-130 318C138 312 364 116 398 -156" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="3"/>
+
+  <rect x="30" y="274" width="134" height="96" fill="url(#pinkDots)" opacity="0.7"/>
+  <circle cx="424" cy="186" r="22" fill="#F4A8C8" fill-opacity="0.24" filter="url(#blurDot)"/>
+
+  <path d="M1324 1120C1502 905 1612 790 1672 628C1738 448 1822 406 1996 442" stroke="#FFFFFF" stroke-opacity="0.68" stroke-width="3"/>
+  <path d="M1714 1098C1674 874 1766 706 1932 660C1984 646 2036 646 2090 662" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="3"/>
+  <path d="M1622 1128C1788 966 1858 840 1932 734C1988 654 2056 596 2152 560" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="3"/>
+
+  <rect x="1590" y="584" width="158" height="98" fill="url(#blueDots)" opacity="0.64"/>
+  <circle cx="1856" cy="444" r="31" fill="#BFD9FF" fill-opacity="0.34"/>
+  <circle cx="1368" cy="1000" r="19" fill="#9DC7FF" fill-opacity="0.34"/>
+
+  <circle cx="1682" cy="1114" r="410" fill="#9DC7FF" fill-opacity="0.16"/>
+  <circle cx="1872" cy="1086" r="304" fill="#8DBDFF" fill-opacity="0.14"/>
+  <circle cx="436" cy="928" r="49" fill="#FFFFFF" fill-opacity="0.2" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="3"/>
+  <circle cx="436" cy="928" r="49" fill="#FFFFFF" fill-opacity="0.06"/>
+</svg>
