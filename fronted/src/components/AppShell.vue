@@ -33,15 +33,43 @@
       </div>
       <nav class="reference-side-links">
         <button type="button" :class="{ active: active === 'dashboard' }" @click="goDashboard">
-          <span>首</span>
+          <span class="reference-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4.5 11.2 12 5l7.5 6.2" />
+              <path d="M6.8 10.2v8.1h3.5v-5h3.4v5h3.5v-8.1" />
+            </svg>
+          </span>
           首页
         </button>
         <button type="button" :class="{ active: active === 'analysis' }" @click="goAnalysis">
-          <span>统</span>
+          <span class="reference-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5.5 18.5V11" />
+              <path d="M12 18.5V6" />
+              <path d="M18.5 18.5v-9" />
+              <path d="M4 19h16" />
+            </svg>
+          </span>
           统计
         </button>
+        <button type="button" :class="{ active: active === 'goals' }" @click="goGoals">
+          <span class="reference-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="12" r="7.2" />
+              <circle cx="12" cy="12" r="3.4" />
+              <path d="M15.2 8.8 19 5" />
+              <path d="M17.1 5H19v1.9" />
+            </svg>
+          </span>
+          长期目标
+        </button>
         <button type="button" :class="{ active: active === 'profile' }" @click="goProfile">
-          <span>我</span>
+          <span class="reference-nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="8.2" r="3.3" />
+              <path d="M5.8 19.2c.9-3 3.1-4.5 6.2-4.5s5.3 1.5 6.2 4.5" />
+            </svg>
+          </span>
           我的
         </button>
       </nav>
@@ -103,6 +131,10 @@ function goDashboard() {
 
 function goAnalysis() {
   router.push('/analysis')
+}
+
+function goGoals() {
+  router.push('/goals')
 }
 
 function goProfile() {

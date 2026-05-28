@@ -52,6 +52,11 @@ public class DecisionController {
         return Result.success(decisionService.detail(currentUserId(), id));
     }
 
+    @GetMapping("/goal/{goalId}")
+    public Result<List<Decision>> byGoal(@PathVariable Long goalId) {
+        return Result.success(decisionService.getDecisionsByGoalId(currentUserId(), goalId));
+    }
+
     @PostMapping
     public Result<Decision> create(@Valid @RequestBody DecisionCreateRequest body) {
         return Result.success(decisionService.create(currentUserId(), body));

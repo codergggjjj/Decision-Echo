@@ -5,6 +5,8 @@ import java.util.List;
 
 public record DecisionDetail(
         Long id,
+        Long goalId,
+        String goalTitle,
         String title,
         String context,
         List<DecisionOption> options,
@@ -15,4 +17,18 @@ public record DecisionDetail(
         String status,
         LocalDateTime createTime
 ) {
+    public DecisionDetail(
+            Long id,
+            String title,
+            String context,
+            List<DecisionOption> options,
+            String finalChoice,
+            String reason,
+            String satisfaction,
+            String feedback,
+            String status,
+            LocalDateTime createTime
+    ) {
+        this(id, null, null, title, context, options, finalChoice, reason, satisfaction, feedback, status, createTime);
+    }
 }

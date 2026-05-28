@@ -6,6 +6,8 @@ import com.exam.exam_backed.advice.mapper.SystemConfigMapper;
 import com.exam.exam_backed.advice.service.impl.AdviceServiceImpl;
 import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
+import com.exam.exam_backed.goal.Goal;
+import com.exam.exam_backed.goal.mapper.GoalMapper;
 import com.exam.exam_backed.support.AbstractBaseMapperStub;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -14,11 +16,13 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,12 +82,71 @@ class AdviceServiceImplTest {
         assertFalse(capturedRequestBody.contains("其他用户数据"));
     }
 
+    @Test
+    void generateIncludesGoalContextAndParsesGoalAlignment() throws IOException {
+        startAiServerWithGoalAlignment();
+        systemConfigMapper.baseUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
+        LocalDateTime now = LocalDateTime.now();
+        FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(
+                3L,
+                7L,
+                "提升编程能力",
+                "完成 3 个项目并投递实习",
+                "学习",
+                "HIGH",
+                "IN_PROGRESS",
+                LocalDate.of(2026, 12, 31),
+                "完成 3 个项目",
+                40,
+                now,
+                now
+        ));
+
+        var response = new AdviceServiceImpl(systemConfigMapper, decisionMapper, goalMapper).generate(new AdviceGenerateRequest(
+                null,
+                "create",
+                "是否报名课程",
+                "想提升前端能力",
+                "报名,不报名",
+                "报名",
+                "提升技能",
+                "学习",
+                "平静",
+                2,
+                now,
+                "",
+                "",
+                "",
+                3L
+        ), 7L);
+
+        assertTrue(capturedRequestBody.contains("长期目标信息"));
+        assertTrue(capturedRequestBody.contains("提升编程能力"));
+        assertEquals(85, response.goalAlignment().score());
+        assertEquals("报名", response.goalAlignment().bestOption());
+    }
+
     private void startAiServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {
             capturedRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String body = """
                     {"choices":[{"message":{"content":"{\\"summary\\":\\"ok\\",\\"factors\\":\\"ok\\",\\"risks\\":\\"ok\\",\\"improvements\\":[\\"ok\\"],\\"nextReminder\\":\\"ok\\"}"}}]}
+                    """;
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+    }
+
+    private void startAiServerWithGoalAlignment() throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            capturedRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            String body = """
+                    {"choices":[{"message":{"content":"{\\"overallAdvice\\":\\"ok\\",\\"options\\":[],\\"reminder\\":\\"ok\\",\\"goalAlignment\\":{\\"score\\":85,\\"level\\":\\"高度契合\\",\\"bestOption\\":\\"报名\\",\\"reason\\":\\"有助于长期目标\\",\\"optionAnalysis\\":[{\\"option\\":\\"报名\\",\\"score\\":85,\\"comment\\":\\"直接提升技能\\"}]}}"}}]}
                     """;
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
@@ -150,6 +213,19 @@ class AdviceServiceImplTest {
         @Override
         public List<String> findTagsByUserId(Long userId) {
             throw unsupported();
+        }
+    }
+
+    private static class FakeGoalMapper extends AbstractBaseMapperStub<Goal> implements GoalMapper {
+        private final Goal goal;
+
+        private FakeGoalMapper(Goal goal) {
+            this.goal = goal;
+        }
+
+        @Override
+        public Goal selectOne(Wrapper<Goal> queryWrapper) {
+            return goal;
         }
     }
 }

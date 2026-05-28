@@ -12,6 +12,7 @@ public class Decision {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
+    private Long goalId;
     private String title;
     private String context;
     @TableField("`options`")
@@ -24,6 +25,7 @@ public class Decision {
     private String satisfaction;
     private String feedback;
     private String status;
+    private Integer deleted;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -47,8 +49,32 @@ public class Decision {
             LocalDateTime createTime,
             LocalDateTime updateTime
     ) {
+        this(id, userId, null, title, context, options, reason, tags, mood, urgency, reviewTime,
+                satisfaction, feedback, status, 0, createTime, updateTime);
+    }
+
+    public Decision(
+            Long id,
+            Long userId,
+            Long goalId,
+            String title,
+            String context,
+            String options,
+            String reason,
+            String tags,
+            String mood,
+            Integer urgency,
+            LocalDateTime reviewTime,
+            String satisfaction,
+            String feedback,
+            String status,
+            Integer deleted,
+            LocalDateTime createTime,
+            LocalDateTime updateTime
+    ) {
         this.id = id;
         this.userId = userId;
+        this.goalId = goalId;
         this.title = title;
         this.context = context;
         this.options = options;
@@ -60,6 +86,7 @@ public class Decision {
         this.satisfaction = satisfaction;
         this.feedback = feedback;
         this.status = status;
+        this.deleted = deleted == null ? 0 : deleted;
         this.createTime = createTime;
         this.updateTime = updateTime;
     }
@@ -86,6 +113,18 @@ public class Decision {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long goalId() {
+        return goalId;
+    }
+
+    public Long getGoalId() {
+        return goalId;
+    }
+
+    public void setGoalId(Long goalId) {
+        this.goalId = goalId;
     }
 
     public String title() {
@@ -220,6 +259,18 @@ public class Decision {
         this.status = status;
     }
 
+    public Integer deleted() {
+        return deleted;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
+    }
+
     public LocalDateTime createTime() {
         return createTime;
     }
@@ -245,12 +296,12 @@ public class Decision {
     }
 
     public Decision withId(Long newId) {
-        return new Decision(newId, userId, title, context, options, reason, tags, mood, urgency, reviewTime,
-                satisfaction, feedback, status, createTime, updateTime);
+        return new Decision(newId, userId, goalId, title, context, options, reason, tags, mood, urgency, reviewTime,
+                satisfaction, feedback, status, deleted, createTime, updateTime);
     }
 
     public Decision withReview(String newSatisfaction, String newFeedback, String newStatus) {
-        return new Decision(id, userId, title, context, options, reason, tags, mood, urgency, reviewTime,
-                newSatisfaction, newFeedback, newStatus, createTime, LocalDateTime.now());
+        return new Decision(id, userId, goalId, title, context, options, reason, tags, mood, urgency, reviewTime,
+                newSatisfaction, newFeedback, newStatus, deleted, createTime, LocalDateTime.now());
     }
 }

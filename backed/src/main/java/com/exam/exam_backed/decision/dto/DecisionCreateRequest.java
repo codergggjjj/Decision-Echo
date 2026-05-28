@@ -33,6 +33,20 @@ public record DecisionCreateRequest(
         Integer urgency,
 
         @NotNull(message = "回测时间不能为空")
-        LocalDateTime reviewTime
+        LocalDateTime reviewTime,
+
+        Long goalId
 ) {
+    public DecisionCreateRequest(
+            String title,
+            String context,
+            String options,
+            String reason,
+            String tags,
+            String mood,
+            Integer urgency,
+            LocalDateTime reviewTime
+    ) {
+        this(title, context, options, reason, tags, mood, urgency, reviewTime, null);
+    }
 }

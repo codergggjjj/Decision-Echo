@@ -22,6 +22,8 @@ public interface DecisionService {
 
     DecisionDetail detail(Long userId, Long decisionId);
 
+    List<Decision> getDecisionsByGoalId(Long userId, Long goalId);
+
     Decision review(Long userId, Long decisionId, DecisionReviewRequest request);
 
     void delete(Long userId, Long decisionId);

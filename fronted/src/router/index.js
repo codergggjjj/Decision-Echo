@@ -4,6 +4,8 @@ import LoginView from '../views/login/LoginView.vue'
 import DashboardView from '../views/dashboard/DashboardView.vue'
 import ProfileView from '../views/profile/ProfileView.vue'
 import AnalysisView from '../views/analysis/AnalysisView.vue'
+import GoalListView from '../views/goal/GoalListView.vue'
+import GoalDetailView from '../views/goal/GoalDetailView.vue'
 import ErrorView from '../views/error/ErrorView.vue'
 import AdminView from '../views/admin/AdminView.vue'
 
@@ -15,6 +17,8 @@ const router = createRouter({
     { path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
     { path: '/profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/analysis', component: AnalysisView, meta: { requiresAuth: true } },
+    { path: '/goals', component: GoalListView, meta: { requiresAuth: true } },
+    { path: '/goals/:id', component: GoalDetailView, meta: { requiresAuth: true } },
     { path: '/admin', component: AdminView, meta: { requiresAuth: true, requiresAdmin: true } },
     {
       path: '/403',

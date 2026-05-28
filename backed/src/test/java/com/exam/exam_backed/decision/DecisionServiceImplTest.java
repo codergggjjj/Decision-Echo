@@ -7,7 +7,11 @@ import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.service.impl.DecisionServiceImpl;
+import com.exam.exam_backed.goal.Goal;
+import com.exam.exam_backed.goal.mapper.GoalMapper;
 import com.exam.exam_backed.support.AbstractBaseMapperStub;
+import com.exam.exam_backed.tag.Tag;
+import com.exam.exam_backed.tag.service.TagService;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -303,6 +307,52 @@ class DecisionServiceImplTest {
         assertEquals(1L, created.id());
         assertEquals("是否买运动手环", created.title());
         assertEquals(7L, created.userId());
+    }
+
+    @Test
+    void createDecisionStoresGoalIdAndBindsDecisionTags() {
+        FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(3L, 7L, "提升编程能力", "", "学习", "HIGH",
+                "IN_PROGRESS", null, "", 20, null, null));
+        FakeTagService tagService = new FakeTagService();
+        DecisionService service = new DecisionServiceImpl(decisionMapper, goalMapper, tagService);
+        DecisionCreateRequest request = new DecisionCreateRequest(
+                "是否报名课程",
+                "想提升技能",
+                "报名,不报名",
+                "先小成本尝试",
+                "学习,课程",
+                "平静",
+                2,
+                LocalDateTime.of(2026, 6, 2, 10, 0),
+                3L
+        );
+
+        Decision created = service.create(7L, request);
+
+        assertEquals(3L, created.goalId());
+        assertEquals(1L, tagService.boundDecisionId);
+        assertEquals(List.of(1L, 2L), tagService.boundTagIds);
+    }
+
+    @Test
+    void createDecisionRejectsGoalFromAnotherUser() {
+        FakeGoalMapper goalMapper = new FakeGoalMapper(null);
+        DecisionService service = new DecisionServiceImpl(decisionMapper, goalMapper, new FakeTagService());
+        DecisionCreateRequest request = new DecisionCreateRequest(
+                "是否报名课程",
+                "想提升技能",
+                "报名,不报名",
+                "先小成本尝试",
+                "学习",
+                "平静",
+                2,
+                LocalDateTime.of(2026, 6, 2, 10, 0),
+                99L
+        );
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.create(7L, request));
+
+        assertEquals("长期目标不存在", error.getMessage());
     }
 
     @Test
@@ -659,6 +709,49 @@ class DecisionServiceImplTest {
             }
             deletedDecisionIds.add(id);
             return 1;
+        }
+    }
+
+    private static class FakeGoalMapper extends AbstractBaseMapperStub<Goal> implements GoalMapper {
+        private final Goal goal;
+
+        private FakeGoalMapper(Goal goal) {
+            this.goal = goal;
+        }
+
+        @Override
+        public Goal selectOne(com.baomidou.mybatisplus.core.conditions.Wrapper<Goal> queryWrapper) {
+            return goal;
+        }
+    }
+
+    private static class FakeTagService implements TagService {
+        private Long boundDecisionId;
+        private List<Long> boundTagIds = List.of();
+
+        @Override
+        public List<Tag> getOrCreateTags(Long userId, List<String> tagNames) {
+            return List.of();
+        }
+
+        @Override
+        public List<Tag> getOrCreateTags(Long userId, String rawTags) {
+            return List.of(new Tag(1L, userId, "学习", null, null), new Tag(2L, userId, "课程", null, null));
+        }
+
+        @Override
+        public void bindGoalTags(Long goalId, List<Long> tagIds) {
+        }
+
+        @Override
+        public void bindDecisionTags(Long decisionId, List<Long> tagIds) {
+            boundDecisionId = decisionId;
+            boundTagIds = tagIds;
+        }
+
+        @Override
+        public List<String> splitTagNames(String rawTags) {
+            return List.of();
         }
     }
 }

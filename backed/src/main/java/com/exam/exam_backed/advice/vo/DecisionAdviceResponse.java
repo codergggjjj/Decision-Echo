@@ -10,8 +10,22 @@ public record DecisionAdviceResponse(
         String factors,
         String risks,
         List<String> improvements,
-        String nextReminder
+        String nextReminder,
+        GoalAlignmentDTO goalAlignment
 ) {
+    public DecisionAdviceResponse(
+            String overallAdvice,
+            List<OptionAdvice> options,
+            String reminder,
+            String summary,
+            String factors,
+            String risks,
+            List<String> improvements,
+            String nextReminder
+    ) {
+        this(overallAdvice, options, reminder, summary, factors, risks, improvements, nextReminder, null);
+    }
+
     public record OptionAdvice(
             String name,
             List<String> pros,
@@ -19,6 +33,22 @@ public record DecisionAdviceResponse(
             List<String> risks,
             String bestFor,
             String suggestion
+    ) {
+    }
+
+    public record GoalAlignmentDTO(
+            Integer score,
+            String level,
+            String bestOption,
+            String reason,
+            List<OptionAlignmentDTO> optionAnalysis
+    ) {
+    }
+
+    public record OptionAlignmentDTO(
+            String option,
+            Integer score,
+            String comment
     ) {
     }
 }

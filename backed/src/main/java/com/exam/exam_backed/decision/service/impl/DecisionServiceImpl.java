@@ -1,5 +1,6 @@
 package com.exam.exam_backed.decision.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.decision.vo.DecisionDetail;
@@ -11,6 +12,11 @@ import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.vo.DecisionDashboard;
 import com.exam.exam_backed.decision.vo.DecisionSummary;
+import com.exam.exam_backed.goal.Goal;
+import com.exam.exam_backed.goal.mapper.GoalMapper;
+import com.exam.exam_backed.tag.Tag;
+import com.exam.exam_backed.tag.service.TagService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,9 +32,18 @@ public class DecisionServiceImpl implements DecisionService {
     private static final String STATUS_REVIEWED = "reviewed";
     private static final String DECISION_NOT_FOUND = "决策记录不存在";
     private final DecisionMapper decisionMapper;
+    private final GoalMapper goalMapper;
+    private final TagService tagService;
 
     public DecisionServiceImpl(DecisionMapper decisionMapper) {
+        this(decisionMapper, null, null);
+    }
+
+    @Autowired
+    public DecisionServiceImpl(DecisionMapper decisionMapper, GoalMapper goalMapper, TagService tagService) {
         this.decisionMapper = decisionMapper;
+        this.goalMapper = goalMapper;
+        this.tagService = tagService;
     }
 
     @Override
@@ -37,6 +52,7 @@ public class DecisionServiceImpl implements DecisionService {
         Decision decision = new Decision(
                 null,
                 userId,
+                normalizeGoalId(userId, request.goalId()),
                 request.title(),
                 request.context() == null ? "" : request.context(),
                 request.options(),
@@ -48,10 +64,12 @@ public class DecisionServiceImpl implements DecisionService {
                 null,
                 null,
                 STATUS_PENDING,
+                0,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
         decisionMapper.insert(decision);
+        bindDecisionTags(userId, decision.id(), request.tags());
         return decisionMapper.findByIdAndUserId(decision.id(), userId).orElse(decision);
     }
 
@@ -100,6 +118,8 @@ public class DecisionServiceImpl implements DecisionService {
         ParsedOptions parsedOptions = parseOptions(decision.options());
         return new DecisionDetail(
                 decision.id(),
+                decision.goalId(),
+                goalTitle(userId, decision.goalId()),
                 decision.title(),
                 decision.context(),
                 parsedOptions.options(),
@@ -110,6 +130,19 @@ public class DecisionServiceImpl implements DecisionService {
                 decision.status(),
                 decision.createTime()
         );
+    }
+
+    @Override
+    public List<Decision> getDecisionsByGoalId(Long userId, Long goalId) {
+        if (goalMapper != null) {
+            ensureGoalBelongsToUser(userId, goalId);
+        }
+        return decisionMapper.selectList(new LambdaQueryWrapper<Decision>()
+                .eq(Decision::getUserId, userId)
+                .eq(Decision::getGoalId, goalId)
+                .eq(Decision::getDeleted, 0)
+                .orderByDesc(Decision::getCreateTime)
+                .orderByDesc(Decision::getId));
     }
 
     private String normalizeText(String value) {
@@ -159,6 +192,46 @@ public class DecisionServiceImpl implements DecisionService {
     private Decision findExistingDecision(Long userId, Long decisionId) {
         return decisionMapper.findByIdAndUserId(decisionId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARAM_ERROR, DECISION_NOT_FOUND));
+    }
+
+    private Long normalizeGoalId(Long userId, Long goalId) {
+        if (goalId == null) {
+            return null;
+        }
+        ensureGoalBelongsToUser(userId, goalId);
+        return goalId;
+    }
+
+    private void ensureGoalBelongsToUser(Long userId, Long goalId) {
+        if (goalMapper == null) {
+            return;
+        }
+        Goal goal = goalMapper.selectOne(new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, goalId)
+                .eq(Goal::getUserId, userId)
+                .last("LIMIT 1"));
+        if (goal == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "长期目标不存在");
+        }
+    }
+
+    private String goalTitle(Long userId, Long goalId) {
+        if (goalId == null || goalMapper == null) {
+            return null;
+        }
+        Goal goal = goalMapper.selectOne(new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, goalId)
+                .eq(Goal::getUserId, userId)
+                .last("LIMIT 1"));
+        return goal == null ? null : goal.getTitle();
+    }
+
+    private void bindDecisionTags(Long userId, Long decisionId, String rawTags) {
+        if (tagService == null || decisionId == null) {
+            return;
+        }
+        List<Tag> tags = tagService.getOrCreateTags(userId, rawTags);
+        tagService.bindDecisionTags(decisionId, tags.stream().map(Tag::getId).toList());
     }
 
     private ParsedOptions parseOptions(String rawOptions) {

@@ -14,6 +14,7 @@ export const API_PATHS = {
   adviceGenerate: '/api/advice/generate',
   decisionDashboard: '/api/decisions/dashboard',
   decisions: '/api/decisions',
+  goals: '/api/goals',
   adminStats: '/api/admin/stats',
   adminUsers: '/api/admin/users',
   adminDecisions: '/api/admin/decisions',

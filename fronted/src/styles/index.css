@@ -5727,6 +5727,16 @@ input {
   font-weight: 900;
 }
 
+.reference-side-links button .reference-nav-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .reference-side-links button:hover {
   background: var(--df-panel-soft);
   color: var(--df-primary);

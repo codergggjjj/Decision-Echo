@@ -1,6 +1,7 @@
 package com.exam.exam_backed.advice.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.exam.exam_backed.advice.dto.AdviceGenerateRequest;
 import com.exam.exam_backed.advice.mapper.SystemConfigMapper;
 import com.exam.exam_backed.advice.service.AdviceService;
@@ -9,8 +10,11 @@ import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
+import com.exam.exam_backed.goal.Goal;
+import com.exam.exam_backed.goal.mapper.GoalMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -34,12 +38,19 @@ public class AdviceServiceImpl implements AdviceService {
 
     private final SystemConfigMapper systemConfigMapper;
     private final DecisionMapper decisionMapper;
+    private final GoalMapper goalMapper;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper) {
+        this(systemConfigMapper, decisionMapper, null);
+    }
+
+    @Autowired
+    public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper, GoalMapper goalMapper) {
         this.systemConfigMapper = systemConfigMapper;
         this.decisionMapper = decisionMapper;
+        this.goalMapper = goalMapper;
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(8))
@@ -53,7 +64,7 @@ public class AdviceServiceImpl implements AdviceService {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 服务未配置，请先设置 API Key");
         }
         validateCurrentDecisionAccess(request, userId);
-        return requestAdvice(request, settings, buildHistorySummary(request, userId));
+        return requestAdvice(request, settings, buildHistorySummary(request, userId), userId);
     }
 
     private void validateCurrentDecisionAccess(AdviceGenerateRequest request, Long userId) {
@@ -80,9 +91,9 @@ public class AdviceServiceImpl implements AdviceService {
                 .orElse(defaultValue);
     }
 
-    private DecisionAdviceResponse requestAdvice(AdviceGenerateRequest decision, AiSettings settings, String historySummary) {
+    private DecisionAdviceResponse requestAdvice(AdviceGenerateRequest decision, AiSettings settings, String historySummary, Long userId) {
         try {
-            String requestBody = buildRequestBody(decision, settings.model(), historySummary);
+            String requestBody = buildRequestBody(decision, settings.model(), historySummary, userId);
             HttpRequest request = HttpRequest.newBuilder(chatCompletionsUri(settings.baseUrl()))
                     .timeout(Duration.ofSeconds(30))
                     .header("Authorization", "Bearer " + settings.apiKey())
@@ -113,8 +124,9 @@ public class AdviceServiceImpl implements AdviceService {
         return URI.create(normalizedBaseUrl + "/chat/completions");
     }
 
-    private String buildRequestBody(AdviceGenerateRequest decision, String model, String historySummary) {
+    private String buildRequestBody(AdviceGenerateRequest decision, String model, String historySummary, Long userId) {
         boolean reviewMode = isReviewMode(decision);
+        String goalContext = buildGoalContext(decision, userId);
         return """
                 {"model":"%s","temperature":0.3,"response_format":{"type":"json_object"},"messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]}
                 """.formatted(
@@ -122,7 +134,7 @@ public class AdviceServiceImpl implements AdviceService {
                 escapeJson(reviewMode
                         ? "你是一个理性、温和、客观的个人决策复盘助手。你必须只输出合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。"
                         : "你是一个理性、温和、客观的个人决策分析助手。你必须只输出合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。"),
-                escapeJson(reviewMode ? buildReviewPrompt(decision, historySummary) : buildCreatePrompt(decision, historySummary))
+                escapeJson(reviewMode ? buildReviewPrompt(decision, historySummary, goalContext) : buildCreatePrompt(decision, historySummary, goalContext))
         ).trim();
     }
 
@@ -130,7 +142,7 @@ public class AdviceServiceImpl implements AdviceService {
         return "review".equalsIgnoreCase(fallback(decision.mode(), ""));
     }
 
-    private String buildCreatePrompt(AdviceGenerateRequest decision, String historySummary) {
+    private String buildCreatePrompt(AdviceGenerateRequest decision, String historySummary, String goalContext) {
         return """
                 请根据用户提供的决策背景、候选方案和历史决策数据，对每个候选方案进行利弊分析。
 
@@ -140,7 +152,8 @@ public class AdviceServiceImpl implements AdviceService {
                 3. 不要编造用户没有提供的信息。
                 4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 分析要简洁、具体、可执行。
-                6. 输出必须是合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。
+                6. 如果提供了长期目标信息，必须额外分析每个候选方案对长期目标的契合度。
+                7. 输出必须是合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。
 
                 用户决策信息：
                 决策标题：%s
@@ -149,6 +162,8 @@ public class AdviceServiceImpl implements AdviceService {
                 当前心情：%s
                 紧急程度：%s
                 历史决策数据：
+                %s
+                长期目标信息：
                 %s
 
                 候选方案：
@@ -167,7 +182,16 @@ public class AdviceServiceImpl implements AdviceService {
                       "suggestion": "对这个方案的补充建议"
                     }
                   ],
-                  "reminder": "最终选择前需要注意的一句话"
+                  "reminder": "最终选择前需要注意的一句话",
+                  "goalAlignment": {
+                    "score": 0,
+                    "level": "无长期目标/低度契合/中度契合/高度契合",
+                    "bestOption": "最契合长期目标的候选方案名称",
+                    "reason": "为什么该方案更契合长期目标",
+                    "optionAnalysis": [
+                      { "option": "候选方案名称", "score": 0, "comment": "该方案与长期目标的关系" }
+                    ]
+                  }
                 }
                 """.formatted(
                 fallback(decision.title(), "未填写标题"),
@@ -176,11 +200,12 @@ public class AdviceServiceImpl implements AdviceService {
                 fallback(decision.mood(), "未填写心情"),
                 decision.urgency(),
                 historySummary,
+                fallback(goalContext, "未关联长期目标"),
                 fallback(decision.options(), "未填写候选方案")
         );
     }
 
-    private String buildReviewPrompt(AdviceGenerateRequest decision, String historySummary) {
+    private String buildReviewPrompt(AdviceGenerateRequest decision, String historySummary, String goalContext) {
         return """
                 请根据用户提供的当前决策记录、回测结果和数据库中的相关历史决策数据，生成结构清晰、语气温和、可执行的复盘建议。
 
@@ -190,8 +215,9 @@ public class AdviceServiceImpl implements AdviceService {
                 3. 不要编造用户没有提供的信息。
                 4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 建议要具体、简洁、可执行。
-                6. 总字数控制在 300 字以内。
-                7. 必须严格按照指定 JSON 格式输出，不要输出 Markdown 或 JSON 以外的解释。
+                6. 如果提供了长期目标信息，必须额外分析这次选择与长期目标的契合度。
+                7. 总字数控制在 300 字以内。
+                8. 必须严格按照指定 JSON 格式输出，不要输出 Markdown 或 JSON 以外的解释。
 
                 用户当前决策信息：
                 决策标题：%s
@@ -206,6 +232,8 @@ public class AdviceServiceImpl implements AdviceService {
                 回测反馈：%s
                 历史决策数据：
                 %s
+                长期目标信息：
+                %s
 
                 请严格返回以下 JSON 格式：
                 {
@@ -217,7 +245,16 @@ public class AdviceServiceImpl implements AdviceService {
                     "改进建议2：一条具体、可执行的建议。",
                     "改进建议3：一条具体、可执行的建议。"
                   ],
-                  "nextReminder": "下次提醒：用一句话提醒用户下次遇到类似决策时可以注意什么。"
+                  "nextReminder": "下次提醒：用一句话提醒用户下次遇到类似决策时可以注意什么。",
+                  "goalAlignment": {
+                    "score": 0,
+                    "level": "无长期目标/低度契合/中度契合/高度契合",
+                    "bestOption": "最契合长期目标的候选方案名称",
+                    "reason": "这次选择与长期目标的关系",
+                    "optionAnalysis": [
+                      { "option": "候选方案名称", "score": 0, "comment": "该方案与长期目标的关系" }
+                    ]
+                  }
                 }
                 """.formatted(
                 fallback(decision.title(), "未填写标题"),
@@ -230,8 +267,52 @@ public class AdviceServiceImpl implements AdviceService {
                 decision.urgency(),
                 fallback(decision.satisfaction(), "未填写回测满意度"),
                 fallback(decision.feedback(), "未填写回测反馈"),
-                historySummary
+                historySummary,
+                fallback(goalContext, "未关联长期目标")
         );
+    }
+
+    private String buildGoalContext(AdviceGenerateRequest request, Long userId) {
+        Goal goal = resolveGoal(request, userId);
+        if (goal == null) {
+            return "";
+        }
+        return """
+                标题：%s
+                描述：%s
+                分类：%s
+                优先级：%s
+                衡量方式：%s
+                预期完成日期：%s
+                当前进度：%s%%
+                """.formatted(
+                fallback(goal.getTitle(), "未填写"),
+                fallback(goal.getDescription(), "未填写"),
+                fallback(goal.getCategory(), "未填写"),
+                fallback(goal.getPriority(), "MEDIUM"),
+                fallback(goal.getMeasurement(), "未填写"),
+                goal.getTargetDate() == null ? "未设置" : goal.getTargetDate().toString(),
+                goal.getProgress() == null ? 0 : goal.getProgress()
+        );
+    }
+
+    private Goal resolveGoal(AdviceGenerateRequest request, Long userId) {
+        if (goalMapper == null || userId == null) {
+            return null;
+        }
+        Long goalId = request.goalId();
+        if (goalId == null && request.decisionId() != null) {
+            goalId = decisionMapper.findByIdAndUserId(request.decisionId(), userId)
+                    .map(Decision::goalId)
+                    .orElse(null);
+        }
+        if (goalId == null) {
+            return null;
+        }
+        return goalMapper.selectOne(new LambdaQueryWrapper<Goal>()
+                .eq(Goal::getId, goalId)
+                .eq(Goal::getUserId, userId)
+                .last("LIMIT 1"));
     }
 
     private String buildHistorySummary(AdviceGenerateRequest currentDecision, Long userId) {
@@ -392,7 +473,21 @@ public class AdviceServiceImpl implements AdviceService {
                 fallback(advice.factors(), ""),
                 fallback(advice.risks(), ""),
                 advice.improvements() == null ? List.of() : advice.improvements(),
-                fallback(advice.nextReminder(), "")
+                fallback(advice.nextReminder(), ""),
+                normalizeGoalAlignment(advice.goalAlignment())
+        );
+    }
+
+    private DecisionAdviceResponse.GoalAlignmentDTO normalizeGoalAlignment(DecisionAdviceResponse.GoalAlignmentDTO goalAlignment) {
+        if (goalAlignment == null) {
+            return null;
+        }
+        return new DecisionAdviceResponse.GoalAlignmentDTO(
+                goalAlignment.score() == null ? 0 : Math.max(0, Math.min(100, goalAlignment.score())),
+                fallback(goalAlignment.level(), ""),
+                fallback(goalAlignment.bestOption(), ""),
+                fallback(goalAlignment.reason(), ""),
+                goalAlignment.optionAnalysis() == null ? List.of() : goalAlignment.optionAnalysis()
         );
     }
 
