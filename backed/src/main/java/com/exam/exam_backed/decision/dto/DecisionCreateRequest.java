@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record DecisionCreateRequest(
         @NotBlank(message = "标题不能为空")
@@ -35,7 +36,9 @@ public record DecisionCreateRequest(
         @NotNull(message = "回测时间不能为空")
         LocalDateTime reviewTime,
 
-        Long goalId
+        Long goalId,
+
+        List<Long> goalIds
 ) {
     public DecisionCreateRequest(
             String title,
@@ -47,6 +50,20 @@ public record DecisionCreateRequest(
             Integer urgency,
             LocalDateTime reviewTime
     ) {
-        this(title, context, options, reason, tags, mood, urgency, reviewTime, null);
+        this(title, context, options, reason, tags, mood, urgency, reviewTime, null, List.of());
+    }
+
+    public DecisionCreateRequest(
+            String title,
+            String context,
+            String options,
+            String reason,
+            String tags,
+            String mood,
+            Integer urgency,
+            LocalDateTime reviewTime,
+            Long goalId
+    ) {
+        this(title, context, options, reason, tags, mood, urgency, reviewTime, goalId, List.of());
     }
 }

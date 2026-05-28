@@ -1,12 +1,12 @@
 <template>
-  <AppShell v-model:search-value="keyword" active="goals" page-class="goal-shell-page" @search="loadGoals" @create="showCreateHint">
+  <AppShell v-model:search-value="keyword" active="goals" page-class="goal-shell-page" @search="loadGoals" @create="openCreateDialog">
     <div class="goal-page">
       <header class="goal-hero">
         <div>
           <h1>长期目标</h1>
           <p>让每一次决策都更靠近长期方向</p>
         </div>
-        <button type="button" class="goal-primary-button" @click="showCreateHint">
+        <button type="button" class="goal-primary-button" @click="openCreateDialog">
           <span>+</span>
           新建目标
         </button>
@@ -100,6 +100,7 @@
         </article>
       </section>
     </div>
+    <GoalCreateDialog v-model:visible="createDialogVisible" @success="handleCreateSuccess" />
   </AppShell>
 </template>
 
@@ -108,6 +109,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppShell from '../../components/AppShell.vue'
+import GoalCreateDialog from './components/GoalCreateDialog.vue'
 import { getGoals } from '../../api/goal'
 
 const router = useRouter()
@@ -116,6 +118,7 @@ const errorMessage = ref('')
 const goals = ref([])
 const keyword = ref('')
 const selectedStatus = ref('')
+const createDialogVisible = ref(false)
 
 const statusFilters = [
   { label: '全部', value: '' },
@@ -192,8 +195,12 @@ function openGoal(goal) {
   router.push(`/goals/${goal.id}`)
 }
 
-function showCreateHint() {
-  ElMessage.info('目标新建入口已预留，待后端创建接口接入后启用。')
+function openCreateDialog() {
+  createDialogVisible.value = true
+}
+
+async function handleCreateSuccess() {
+  await loadGoals()
 }
 
 function showFilterHint() {

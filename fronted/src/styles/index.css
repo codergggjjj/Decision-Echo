@@ -4140,6 +4140,108 @@ input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.goal-recommend-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(251, 127, 189, 0.22);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 241, 247, 0.86), transparent 58%),
+    #ffffff;
+  box-shadow: 0 10px 24px rgba(169, 75, 120, 0.08);
+}
+
+.goal-recommend-card > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.goal-recommend-card span {
+  color: #8f2f5d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.goal-recommend-card p {
+  margin: 4px 0 0;
+  color: #6b5a62;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.goal-recommend-card > button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #9e3a68;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(158, 58, 104, 0.18);
+  transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+.goal-recommend-card > button:hover {
+  background: #802150;
+  transform: translateY(-2px);
+}
+
+.goal-recommend-card > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.goal-recommend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goal-recommend-list button {
+  display: grid;
+  gap: 3px;
+  max-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 192, 199, 0.74);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #191c1e;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.goal-recommend-list button:hover,
+.goal-recommend-list button.selected {
+  border-color: rgba(158, 58, 104, 0.36);
+  background: #fff7fb;
+  box-shadow: 0 8px 18px rgba(25, 28, 30, 0.07);
+  transform: translateY(-2px);
+}
+
+.goal-recommend-list strong {
+  overflow: hidden;
+  color: #191c1e;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-recommend-list small {
+  color: #6b5a62;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .create-decision-dialog .el-select,
 .create-decision-dialog .el-date-editor {
   width: 100%;
@@ -4309,6 +4411,28 @@ input {
 
 .create-dialog-footer .dialog-primary {
   min-width: 144px;
+  border: 0;
+  background: linear-gradient(90deg, #fb7299 0%, #a94b78 100%);
+  color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(169, 75, 120, 0.24);
+}
+
+.create-dialog-footer .dialog-primary:hover,
+.create-dialog-footer .dialog-primary:focus,
+.review-dialog-footer .dialog-primary:hover,
+.review-dialog-footer .dialog-primary:focus {
+  border: 0;
+  background: linear-gradient(90deg, #e85f8b 0%, #8f2f5d 100%);
+  color: #ffffff;
+}
+
+.review-dialog-footer .dialog-primary {
+  border: 0;
+  background: linear-gradient(90deg, #fb7299 0%, #a94b78 100%);
+  color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(169, 75, 120, 0.24);
 }
 
 .selected-option-preview {

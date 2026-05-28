@@ -3,11 +3,14 @@ package com.exam.exam_backed.decision.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
+import com.exam.exam_backed.decision.DecisionGoal;
 import com.exam.exam_backed.decision.vo.DecisionDetail;
+import com.exam.exam_backed.decision.vo.DecisionGoalVO;
 import com.exam.exam_backed.decision.vo.DecisionOption;
 import com.exam.exam_backed.decision.Decision;
 import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
+import com.exam.exam_backed.decision.mapper.DecisionGoalMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.vo.DecisionDashboard;
@@ -17,11 +20,13 @@ import com.exam.exam_backed.goal.mapper.GoalMapper;
 import com.exam.exam_backed.tag.Tag;
 import com.exam.exam_backed.tag.service.TagService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +37,22 @@ public class DecisionServiceImpl implements DecisionService {
     private static final String STATUS_REVIEWED = "reviewed";
     private static final String DECISION_NOT_FOUND = "决策记录不存在";
     private final DecisionMapper decisionMapper;
+    private final DecisionGoalMapper decisionGoalMapper;
     private final GoalMapper goalMapper;
     private final TagService tagService;
 
     public DecisionServiceImpl(DecisionMapper decisionMapper) {
-        this(decisionMapper, null, null);
+        this(decisionMapper, null, null, null);
+    }
+
+    public DecisionServiceImpl(DecisionMapper decisionMapper, GoalMapper goalMapper, TagService tagService) {
+        this(decisionMapper, null, goalMapper, tagService);
     }
 
     @Autowired
-    public DecisionServiceImpl(DecisionMapper decisionMapper, GoalMapper goalMapper, TagService tagService) {
+    public DecisionServiceImpl(DecisionMapper decisionMapper, DecisionGoalMapper decisionGoalMapper, GoalMapper goalMapper, TagService tagService) {
         this.decisionMapper = decisionMapper;
+        this.decisionGoalMapper = decisionGoalMapper;
         this.goalMapper = goalMapper;
         this.tagService = tagService;
     }
@@ -49,10 +60,11 @@ public class DecisionServiceImpl implements DecisionService {
     @Override
     @Transactional
     public Decision create(Long userId, DecisionCreateRequest request) {
+        List<Long> goalIds = normalizeGoalIds(userId, request.goalIds(), request.goalId());
         Decision decision = new Decision(
                 null,
                 userId,
-                normalizeGoalId(userId, request.goalId()),
+                goalIds.isEmpty() ? null : goalIds.get(0),
                 request.title(),
                 request.context() == null ? "" : request.context(),
                 request.options(),
@@ -69,6 +81,7 @@ public class DecisionServiceImpl implements DecisionService {
                 LocalDateTime.now()
         );
         decisionMapper.insert(decision);
+        bindDecisionGoals(decision.id(), goalIds);
         bindDecisionTags(userId, decision.id(), request.tags());
         return decisionMapper.findByIdAndUserId(decision.id(), userId).orElse(decision);
     }
@@ -116,10 +129,14 @@ public class DecisionServiceImpl implements DecisionService {
     public DecisionDetail detail(Long userId, Long decisionId) {
         Decision decision = findExistingDecision(userId, decisionId);
         ParsedOptions parsedOptions = parseOptions(decision.options());
+        List<Long> goalIds = findGoalIds(decision);
+        List<DecisionGoalVO> goals = goalVos(userId, goalIds);
         return new DecisionDetail(
                 decision.id(),
-                decision.goalId(),
-                goalTitle(userId, decision.goalId()),
+                goalIds.isEmpty() ? null : goalIds.get(0),
+                goals.isEmpty() ? null : goals.get(0).title(),
+                goalIds,
+                goals,
                 decision.title(),
                 decision.context(),
                 parsedOptions.options(),
@@ -137,10 +154,16 @@ public class DecisionServiceImpl implements DecisionService {
         if (goalMapper != null) {
             ensureGoalBelongsToUser(userId, goalId);
         }
-        return decisionMapper.selectList(new LambdaQueryWrapper<Decision>()
+        List<Long> decisionIds = decisionIdsByGoal(goalId);
+        LambdaQueryWrapper<Decision> query = new LambdaQueryWrapper<Decision>()
                 .eq(Decision::getUserId, userId)
-                .eq(Decision::getGoalId, goalId)
-                .eq(Decision::getDeleted, 0)
+                .eq(Decision::getDeleted, 0);
+        if (decisionIds.isEmpty()) {
+            query.eq(Decision::getGoalId, goalId);
+        } else {
+            query.and(wrapper -> wrapper.in(Decision::getId, decisionIds).or().eq(Decision::getGoalId, goalId));
+        }
+        return decisionMapper.selectList(query
                 .orderByDesc(Decision::getCreateTime)
                 .orderByDesc(Decision::getId));
     }
@@ -194,12 +217,18 @@ public class DecisionServiceImpl implements DecisionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARAM_ERROR, DECISION_NOT_FOUND));
     }
 
-    private Long normalizeGoalId(Long userId, Long goalId) {
-        if (goalId == null) {
-            return null;
+    private List<Long> normalizeGoalIds(Long userId, List<Long> goalIds, Long legacyGoalId) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (legacyGoalId != null) {
+            ids.add(legacyGoalId);
         }
-        ensureGoalBelongsToUser(userId, goalId);
-        return goalId;
+        if (goalIds != null) {
+            ids.addAll(goalIds.stream().filter(id -> id != null && id > 0).toList());
+        }
+        for (Long goalId : ids) {
+            ensureGoalBelongsToUser(userId, goalId);
+        }
+        return new ArrayList<>(ids);
     }
 
     private void ensureGoalBelongsToUser(Long userId, Long goalId) {
@@ -226,12 +255,80 @@ public class DecisionServiceImpl implements DecisionService {
         return goal == null ? null : goal.getTitle();
     }
 
+    private void bindDecisionGoals(Long decisionId, List<Long> goalIds) {
+        if (decisionGoalMapper == null || decisionId == null) {
+            return;
+        }
+        try {
+            decisionGoalMapper.delete(new LambdaQueryWrapper<DecisionGoal>().eq(DecisionGoal::getDecisionId, decisionId));
+            for (Long goalId : goalIds) {
+                decisionGoalMapper.insert(new DecisionGoal(null, decisionId, goalId));
+            }
+        } catch (DataAccessException exception) {
+            // Keep the main decision saved through the legacy decision.goal_id field.
+        }
+    }
+
+    private List<Long> findGoalIds(Decision decision) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (decisionGoalMapper != null && decision.id() != null) {
+            try {
+                decisionGoalMapper.selectList(new LambdaQueryWrapper<DecisionGoal>()
+                                .eq(DecisionGoal::getDecisionId, decision.id()))
+                        .stream()
+                        .map(DecisionGoal::getGoalId)
+                        .filter(id -> id != null && id > 0)
+                        .forEach(ids::add);
+            } catch (DataAccessException exception) {
+                // Fall back to legacy decision.goal_id below.
+            }
+        }
+        if (decision.goalId() != null) {
+            ids.add(decision.goalId());
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private List<Long> decisionIdsByGoal(Long goalId) {
+        if (decisionGoalMapper == null) {
+            return List.of();
+        }
+        try {
+            return decisionGoalMapper.selectList(new LambdaQueryWrapper<DecisionGoal>()
+                            .eq(DecisionGoal::getGoalId, goalId))
+                    .stream()
+                    .map(DecisionGoal::getDecisionId)
+                    .distinct()
+                    .toList();
+        } catch (DataAccessException exception) {
+            return List.of();
+        }
+    }
+
+    private List<DecisionGoalVO> goalVos(Long userId, List<Long> goalIds) {
+        if (goalMapper == null || goalIds.isEmpty()) {
+            return List.of();
+        }
+        List<DecisionGoalVO> result = new ArrayList<>();
+        for (Long goalId : goalIds) {
+            String title = goalTitle(userId, goalId);
+            if (title != null) {
+                result.add(new DecisionGoalVO(goalId, title));
+            }
+        }
+        return result;
+    }
+
     private void bindDecisionTags(Long userId, Long decisionId, String rawTags) {
         if (tagService == null || decisionId == null) {
             return;
         }
-        List<Tag> tags = tagService.getOrCreateTags(userId, rawTags);
-        tagService.bindDecisionTags(decisionId, tags.stream().map(Tag::getId).toList());
+        try {
+            List<Tag> tags = tagService.getOrCreateTags(userId, rawTags);
+            tagService.bindDecisionTags(decisionId, tags.stream().map(Tag::getId).toList());
+        } catch (DataAccessException exception) {
+            // The raw decision.tags column remains the compatibility source.
+        }
     }
 
     private ParsedOptions parseOptions(String rawOptions) {

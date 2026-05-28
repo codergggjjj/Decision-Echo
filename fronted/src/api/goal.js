@@ -8,3 +8,11 @@ export function getGoals(params) {
 export function getGoalDetail(id) {
   return request.get(`${API_PATHS.goals}/${id}`)
 }
+
+export function createGoal(data) {
+  return request.post(API_PATHS.goals, data)
+}
+
+export function recommendGoals(tags) {
+  return request.post(`${API_PATHS.goals}/recommend`, { tags })
+}

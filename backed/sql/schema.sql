@@ -105,6 +105,41 @@ DELIMITER ;
 
 CALL add_index_if_missing('decision', 'idx_decision_goal', 'ALTER TABLE `decision` ADD KEY `idx_decision_goal` (`goal_id`)');
 
+CREATE TABLE IF NOT EXISTS `system_config` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+    `config_key` VARCHAR(100) NOT NULL COMMENT '配置键',
+    `config_value` TEXT NOT NULL COMMENT '配置值',
+    `description` VARCHAR(255) DEFAULT NULL COMMENT '配置说明',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_system_config_key` (`config_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
+
+INSERT INTO `system_config` (`config_key`, `config_value`, `description`)
+VALUES
+    ('advice.ai.base_url', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'AI service base URL'),
+    ('advice.ai.model', 'qwen-plus', 'AI model name')
+ON DUPLICATE KEY UPDATE
+    `config_value` = VALUES(`config_value`),
+    `description` = VALUES(`description`),
+    `deleted` = 0;
+
+CREATE TABLE IF NOT EXISTS `decision_goal` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '决策目标关系ID',
+    `decision_id` BIGINT NOT NULL COMMENT '决策ID',
+    `goal_id` BIGINT NOT NULL COMMENT '目标ID',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_decision_goal` (`decision_id`, `goal_id`),
+    KEY `idx_decision_goal_goal_id` (`goal_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='决策目标关系表';
+
+INSERT IGNORE INTO `decision_goal` (`decision_id`, `goal_id`)
+SELECT `id`, `goal_id`
+FROM `decision`
+WHERE `goal_id` IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS `goal` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '目标ID',
     `user_id` BIGINT NOT NULL COMMENT '用户ID',

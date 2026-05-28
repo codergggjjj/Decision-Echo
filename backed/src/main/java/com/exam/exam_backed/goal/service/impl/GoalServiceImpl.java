@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.DecisionGoal;
+import com.exam.exam_backed.decision.mapper.DecisionGoalMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.goal.Goal;
 import com.exam.exam_backed.goal.dto.GoalRequest;
@@ -18,6 +20,8 @@ import com.exam.exam_backed.tag.GoalTag;
 import com.exam.exam_backed.tag.Tag;
 import com.exam.exam_backed.tag.mapper.GoalTagMapper;
 import com.exam.exam_backed.tag.service.TagService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,12 +45,19 @@ public class GoalServiceImpl implements GoalService {
     private final GoalMapper goalMapper;
     private final GoalTagMapper goalTagMapper;
     private final DecisionMapper decisionMapper;
+    private final DecisionGoalMapper decisionGoalMapper;
     private final TagService tagService;
 
     public GoalServiceImpl(GoalMapper goalMapper, GoalTagMapper goalTagMapper, DecisionMapper decisionMapper, TagService tagService) {
+        this(goalMapper, goalTagMapper, decisionMapper, null, tagService);
+    }
+
+    @Autowired
+    public GoalServiceImpl(GoalMapper goalMapper, GoalTagMapper goalTagMapper, DecisionMapper decisionMapper, DecisionGoalMapper decisionGoalMapper, TagService tagService) {
         this.goalMapper = goalMapper;
         this.goalTagMapper = goalTagMapper;
         this.decisionMapper = decisionMapper;
+        this.decisionGoalMapper = decisionGoalMapper;
         this.tagService = tagService;
     }
 
@@ -120,6 +132,9 @@ public class GoalServiceImpl implements GoalService {
                 .setSql("goal_id = NULL")
                 .setSql("update_time = NOW()"));
         goalTagMapper.delete(new LambdaQueryWrapper<GoalTag>().eq(GoalTag::getGoalId, goalId));
+        if (decisionGoalMapper != null) {
+            decisionGoalMapper.delete(new LambdaQueryWrapper<DecisionGoal>().eq(DecisionGoal::getGoalId, goalId));
+        }
         goalMapper.delete(new LambdaQueryWrapper<Goal>()
                 .eq(Goal::getId, goalId)
                 .eq(Goal::getUserId, userId));
@@ -127,38 +142,76 @@ public class GoalServiceImpl implements GoalService {
 
     @Override
     public List<GoalListItemVO> recommendGoalsByTags(Long userId, List<String> tags) {
-        List<Tag> tagList = tagService.getOrCreateTags(userId, tags);
-        if (tagList.isEmpty()) {
+        List<String> recommendationTags = expandRecommendationTags(tags);
+        if (recommendationTags.isEmpty()) {
             return List.of();
         }
+        List<Tag> tagList = tagService.getOrCreateTags(userId, recommendationTags);
         List<Long> tagIds = tagList.stream().map(Tag::getId).toList();
-        List<GoalTag> goalTags = goalTagMapper.selectList(new LambdaQueryWrapper<GoalTag>().in(GoalTag::getTagId, tagIds));
-        if (goalTags.isEmpty()) {
-            return List.of();
-        }
+        List<GoalTag> goalTags = tagIds.isEmpty()
+                ? List.of()
+                : goalTagMapper.selectList(new LambdaQueryWrapper<GoalTag>().in(GoalTag::getTagId, tagIds));
         Map<Long, Long> matchCounts = goalTags.stream()
                 .collect(Collectors.groupingBy(GoalTag::getGoalId, LinkedHashMap::new, Collectors.counting()));
         List<Long> candidateIds = new ArrayList<>(matchCounts.keySet());
-        List<Goal> goals = goalMapper.selectList(new LambdaQueryWrapper<Goal>()
+        LambdaQueryWrapper<Goal> query = new LambdaQueryWrapper<Goal>()
                 .eq(Goal::getUserId, userId)
-                .eq(Goal::getStatus, STATUS_IN_PROGRESS)
-                .in(Goal::getId, candidateIds));
+                .eq(Goal::getStatus, STATUS_IN_PROGRESS);
+        if (candidateIds.isEmpty()) {
+            query.in(Goal::getCategory, recommendationTags);
+        } else {
+            query.and(wrapper -> wrapper.in(Goal::getId, candidateIds).or().in(Goal::getCategory, recommendationTags));
+        }
+        List<Goal> goals = goalMapper.selectList(query);
         return goals.stream()
                 .sorted(Comparator
-                        .comparingLong((Goal goal) -> matchCounts.getOrDefault(goal.getId(), 0L)).reversed()
+                        .comparingLong((Goal goal) -> recommendationScore(goal, matchCounts, recommendationTags)).reversed()
                         .thenComparing(Goal::getId))
                 .limit(3)
                 .map(goal -> toListItem(goal, decisionCount(userId, goal.getId())))
                 .toList();
     }
 
+    private long recommendationScore(Goal goal, Map<Long, Long> matchCounts, List<String> recommendationTags) {
+        long score = matchCounts.getOrDefault(goal.getId(), 0L);
+        if (goal.getCategory() != null && recommendationTags.contains(goal.getCategory())) {
+            score += 1;
+        }
+        return score;
+    }
+
+    private List<String> expandRecommendationTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> expanded = new LinkedHashSet<>();
+        for (String tag : tags) {
+            if (tag == null || tag.trim().isBlank()) {
+                continue;
+            }
+            String normalized = tag.trim();
+            expanded.add(normalized);
+            if ("消费".equals(normalized) || "财务".equals(normalized)) {
+                expanded.add("消费");
+                expanded.add("财务");
+            }
+        }
+        return new ArrayList<>(expanded);
+    }
+
     @Override
     public List<Decision> decisionsByGoal(Long userId, Long goalId) {
         findExistingGoal(userId, goalId);
-        return decisionMapper.selectList(new LambdaQueryWrapper<Decision>()
+        List<Long> decisionIds = decisionIdsByGoal(goalId);
+        LambdaQueryWrapper<Decision> query = new LambdaQueryWrapper<Decision>()
                 .eq(Decision::getUserId, userId)
-                .eq(Decision::getGoalId, goalId)
-                .eq(Decision::getDeleted, 0)
+                .eq(Decision::getDeleted, 0);
+        if (decisionIds.isEmpty()) {
+            query.eq(Decision::getGoalId, goalId);
+        } else {
+            query.and(wrapper -> wrapper.in(Decision::getId, decisionIds).or().eq(Decision::getGoalId, goalId));
+        }
+        return decisionMapper.selectList(query
                 .orderByDesc(Decision::getCreateTime)
                 .orderByDesc(Decision::getId));
     }
@@ -190,10 +243,23 @@ public class GoalServiceImpl implements GoalService {
     }
 
     private Integer decisionCount(Long userId, Long goalId) {
-        return decisionMapper.selectCount(new LambdaQueryWrapper<Decision>()
-                .eq(Decision::getUserId, userId)
-                .eq(Decision::getGoalId, goalId)
-                .eq(Decision::getDeleted, 0)).intValue();
+        return decisionsByGoal(userId, goalId).size();
+    }
+
+    private List<Long> decisionIdsByGoal(Long goalId) {
+        if (decisionGoalMapper == null) {
+            return List.of();
+        }
+        try {
+            return decisionGoalMapper.selectList(new LambdaQueryWrapper<DecisionGoal>()
+                            .eq(DecisionGoal::getGoalId, goalId))
+                    .stream()
+                    .map(DecisionGoal::getDecisionId)
+                    .distinct()
+                    .toList();
+        } catch (DataAccessException exception) {
+            return List.of();
+        }
     }
 
     private GoalStatsVO stats(List<Decision> decisions) {

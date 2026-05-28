@@ -7,6 +7,8 @@ public record DecisionDetail(
         Long id,
         Long goalId,
         String goalTitle,
+        List<Long> goalIds,
+        List<DecisionGoalVO> goals,
         String title,
         String context,
         List<DecisionOption> options,
@@ -29,6 +31,6 @@ public record DecisionDetail(
             String status,
             LocalDateTime createTime
     ) {
-        this(id, null, null, title, context, options, finalChoice, reason, satisfaction, feedback, status, createTime);
+        this(id, null, null, List.of(), List.of(), title, context, options, finalChoice, reason, satisfaction, feedback, status, createTime);
     }
 }

@@ -4,6 +4,7 @@ import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.analysis.service.impl.AnalysisServiceImpl;
 import com.exam.exam_backed.decision.dto.DecisionCreateRequest;
 import com.exam.exam_backed.decision.dto.DecisionReviewRequest;
+import com.exam.exam_backed.decision.mapper.DecisionGoalMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.decision.service.DecisionService;
 import com.exam.exam_backed.decision.service.impl.DecisionServiceImpl;
@@ -335,6 +336,47 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void createDecisionBindsMultipleGoalsAndKeepsFirstGoalIdForCompatibility() {
+        FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(3L, 7L, "提升编程能力", "", "学习", "HIGH",
+                "IN_PROGRESS", null, "", 20, null, null));
+        FakeDecisionGoalMapper decisionGoalMapper = new FakeDecisionGoalMapper();
+        DecisionService service = new DecisionServiceImpl(decisionMapper, decisionGoalMapper, goalMapper, new FakeTagService());
+        DecisionCreateRequest request = new DecisionCreateRequest(
+                "是否报名课程",
+                "想提升技能",
+                "报名,不报名",
+                "先小成本尝试",
+                "学习,课程",
+                "平静",
+                2,
+                LocalDateTime.of(2026, 6, 2, 10, 0),
+                null,
+                List.of(3L, 4L, 3L)
+        );
+
+        Decision created = service.create(7L, request);
+
+        assertEquals(3L, created.goalId());
+        assertEquals(List.of(3L, 4L), decisionGoalMapper.links.stream().map(DecisionGoal::goalId).toList());
+    }
+
+    @Test
+    void getDecisionsByGoalIdUsesDecisionGoalLinks() {
+        FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(4L, 7L, "健康目标", "", "健康", "MEDIUM",
+                "IN_PROGRESS", null, "", 10, null, null));
+        FakeDecisionGoalMapper decisionGoalMapper = new FakeDecisionGoalMapper();
+        decisionGoalMapper.links.add(new DecisionGoal(1L, 2L, 4L));
+        DecisionService service = new DecisionServiceImpl(decisionMapper, decisionGoalMapper, goalMapper, new FakeTagService());
+        Decision linked = new Decision(2L, 7L, null, "是否夜跑", "ctx", "跑,不跑", "reason", "健康", "平静", 2,
+                LocalDateTime.now(), null, null, "pending", 0, LocalDateTime.now(), LocalDateTime.now());
+        decisionMapper.seed(linked);
+
+        List<Decision> results = service.getDecisionsByGoalId(7L, 4L);
+
+        assertEquals(List.of(linked), results);
+    }
+
+    @Test
     void createDecisionRejectsGoalFromAnotherUser() {
         FakeGoalMapper goalMapper = new FakeGoalMapper(null);
         DecisionService service = new DecisionServiceImpl(decisionMapper, goalMapper, new FakeTagService());
@@ -522,6 +564,13 @@ class DecisionServiceImplTest {
                     .filter(decision -> decision.id().equals(id) && decision.userId().equals(userId))
                     .filter(decision -> !deletedDecisionIds.contains(decision.id()))
                     .findFirst();
+        }
+
+        @Override
+        public List<Decision> selectList(com.baomidou.mybatisplus.core.conditions.Wrapper<Decision> queryWrapper) {
+            return decisions.stream()
+                    .filter(decision -> !deletedDecisionIds.contains(decision.id()))
+                    .toList();
         }
 
         @Override
@@ -722,6 +771,27 @@ class DecisionServiceImplTest {
         @Override
         public Goal selectOne(com.baomidou.mybatisplus.core.conditions.Wrapper<Goal> queryWrapper) {
             return goal;
+        }
+    }
+
+    private static class FakeDecisionGoalMapper extends AbstractBaseMapperStub<DecisionGoal> implements DecisionGoalMapper {
+        private final List<DecisionGoal> links = new ArrayList<>();
+
+        @Override
+        public int insert(DecisionGoal entity) {
+            links.add(new DecisionGoal((long) links.size() + 1, entity.decisionId(), entity.goalId()));
+            return 1;
+        }
+
+        @Override
+        public int delete(com.baomidou.mybatisplus.core.conditions.Wrapper<DecisionGoal> queryWrapper) {
+            links.clear();
+            return 1;
+        }
+
+        @Override
+        public List<DecisionGoal> selectList(com.baomidou.mybatisplus.core.conditions.Wrapper<DecisionGoal> queryWrapper) {
+            return links;
         }
     }
 

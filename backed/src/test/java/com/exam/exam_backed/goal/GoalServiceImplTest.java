@@ -2,6 +2,8 @@ package com.exam.exam_backed.goal;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.DecisionGoal;
+import com.exam.exam_backed.decision.mapper.DecisionGoalMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.goal.dto.GoalRequest;
 import com.exam.exam_backed.goal.mapper.GoalMapper;
@@ -27,6 +29,7 @@ class GoalServiceImplTest {
     private final FakeGoalMapper goalMapper = new FakeGoalMapper();
     private final FakeGoalTagMapper goalTagMapper = new FakeGoalTagMapper();
     private final FakeDecisionMapper decisionMapper = new FakeDecisionMapper();
+    private final FakeDecisionGoalMapper decisionGoalMapper = new FakeDecisionGoalMapper();
     private final FakeTagService tagService = new FakeTagService();
     private final GoalService goalService = new GoalServiceImpl(goalMapper, goalTagMapper, decisionMapper, tagService);
 
@@ -75,6 +78,27 @@ class GoalServiceImplTest {
     }
 
     @Test
+    void detailAggregatesDecisionGoalLinksAndLegacyGoalId() {
+        GoalService service = new GoalServiceImpl(goalMapper, goalTagMapper, decisionMapper, decisionGoalMapper, tagService);
+        goalMapper.seed(new Goal(1L, 7L, "提升编程能力", "完成项目", "学习", "HIGH", "IN_PROGRESS",
+                LocalDate.of(2026, 12, 31), "完成 3 个项目", 40, LocalDateTime.now(), LocalDateTime.now()));
+        decisionMapper.decisions = List.of(
+                new Decision(1L, 7L, null, "关联表决策", "ctx", "做,不做", "reason", "学习", "平静", 2,
+                        LocalDateTime.now(), null, null, "pending", 0, LocalDateTime.now(), LocalDateTime.now()),
+                new Decision(2L, 7L, 1L, "旧字段决策", "ctx", "做,不做", "reason", "学习", "平静", 2,
+                        LocalDateTime.now(), "满意", "ok", "reviewed", 0, LocalDateTime.now(), LocalDateTime.now())
+        );
+        decisionGoalMapper.goalLinks = List.of(new DecisionGoal(1L, 1L, 1L));
+
+        var detail = service.detail(7L, 1L);
+
+        assertEquals(2, detail.decisionCount());
+        assertEquals(1, detail.stats().reviewedCount());
+        assertEquals(1, detail.stats().pendingReviewCount());
+        assertEquals(List.of("关联表决策", "旧字段决策"), detail.decisions().stream().map(item -> item.title()).toList());
+    }
+
+    @Test
     void recommendReturnsTopThreeByMatchedTagCount() {
         tagService.recommendTags = List.of(new Tag(1L, 7L, "学习", null, null), new Tag(2L, 7L, "项目", null, null));
         goalMapper.seed(new Goal(1L, 7L, "目标1", "", "学习", "HIGH", "IN_PROGRESS", null, "", 10, null, null));
@@ -88,6 +112,27 @@ class GoalServiceImplTest {
         var recommendations = goalService.recommendGoalsByTags(7L, List.of("学习", "项目"));
 
         assertEquals(List.of("目标1", "目标2"), recommendations.stream().map(item -> item.title()).toList());
+    }
+
+    @Test
+    void recommendTreatsConsumptionTagAsRelatedToFinanceGoalTag() {
+        goalMapper.seed(new Goal(1L, 7L, "控制年度预算", "", "财务", "HIGH", "IN_PROGRESS", null, "", 10, null, null));
+        goalTagMapper.goalTags = List.of(new GoalTag(1L, 1L, 2L));
+
+        var recommendations = goalService.recommendGoalsByTags(7L, List.of("消费"));
+
+        assertEquals(List.of("消费", "财务"), tagService.lastGoalTagNames);
+        assertEquals(List.of("控制年度预算"), recommendations.stream().map(item -> item.title()).toList());
+    }
+
+    @Test
+    void recommendTreatsConsumptionTagAsRelatedToFinanceGoalCategory() {
+        goalMapper.seed(new Goal(1L, 7L, "控制年度预算", "", "财务", "HIGH", "IN_PROGRESS", null, "", 10, null, null));
+        goalTagMapper.goalTags = List.of();
+
+        var recommendations = goalService.recommendGoalsByTags(7L, List.of("消费"));
+
+        assertEquals(List.of("控制年度预算"), recommendations.stream().map(item -> item.title()).toList());
     }
 
     @Test
@@ -197,6 +242,22 @@ class GoalServiceImplTest {
         @Override
         public List<String> findTagsByUserId(Long userId) {
             throw unsupported();
+        }
+    }
+
+    private static class FakeDecisionGoalMapper extends AbstractBaseMapperStub<DecisionGoal> implements DecisionGoalMapper {
+        private List<DecisionGoal> goalLinks = new ArrayList<>();
+        private Long deletedGoalId;
+
+        @Override
+        public List<DecisionGoal> selectList(Wrapper<DecisionGoal> queryWrapper) {
+            return goalLinks;
+        }
+
+        @Override
+        public int delete(Wrapper<DecisionGoal> queryWrapper) {
+            deletedGoalId = 1L;
+            return 1;
         }
     }
 

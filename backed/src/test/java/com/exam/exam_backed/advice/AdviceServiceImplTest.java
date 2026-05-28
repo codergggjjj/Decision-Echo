@@ -12,6 +12,7 @@ import com.exam.exam_backed.support.AbstractBaseMapperStub;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -24,6 +25,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdviceServiceImplTest {
@@ -117,13 +119,42 @@ class AdviceServiceImplTest {
                 "",
                 "",
                 "",
-                3L
+                null,
+                List.of(3L, 4L)
         ), 7L);
 
         assertTrue(capturedRequestBody.contains("长期目标信息"));
         assertTrue(capturedRequestBody.contains("提升编程能力"));
+        assertTrue(capturedRequestBody.contains("目标 1"));
+        assertTrue(capturedRequestBody.contains("目标 2"));
         assertEquals(85, response.goalAlignment().score());
         assertEquals("报名", response.goalAlignment().bestOption());
+    }
+
+    @Test
+    void missingSystemConfigTableReturnsClearAiConfigurationError() {
+        systemConfigMapper.throwOnRead = true;
+
+        var error = assertThrows(com.exam.exam_backed.common.BusinessException.class, () ->
+                new AdviceServiceImpl(systemConfigMapper, decisionMapper).generate(new AdviceGenerateRequest(
+                        null,
+                        "create",
+                        "是否报名课程",
+                        "想提升前端能力",
+                        "报名,不报名",
+                        "报名",
+                        "提升技能",
+                        "学习",
+                        "平静",
+                        2,
+                        LocalDateTime.now(),
+                        "",
+                        "",
+                        ""
+                ), 7L)
+        );
+
+        assertEquals("AI 服务未配置，请先设置 API Key", error.getMessage());
     }
 
     private void startAiServer() throws IOException {
@@ -158,9 +189,13 @@ class AdviceServiceImplTest {
 
     private static class FakeSystemConfigMapper extends AbstractBaseMapperStub<SystemConfig> implements SystemConfigMapper {
         private String baseUrl;
+        private boolean throwOnRead;
 
         @Override
         public Optional<String> findValueByKey(String configKey) {
+            if (throwOnRead) {
+                throw new DataAccessResourceFailureException("system_config missing");
+            }
             return switch (configKey) {
                 case "advice.ai.api_key" -> Optional.of("test-key");
                 case "advice.ai.base_url" -> Optional.of(baseUrl);

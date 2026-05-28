@@ -235,6 +235,40 @@
               </el-select>
             </el-form-item>
           </div>
+          <el-form-item label="纳入长期目标">
+            <el-select
+              v-model="createForm.goalIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="选择这条决策要纳入的长期目标"
+            >
+              <el-option v-for="goal in mergedGoalOptions" :key="goal.id" :label="goal.title || '未命名目标'" :value="goal.id" />
+            </el-select>
+          </el-form-item>
+          <div class="goal-recommend-card">
+            <div>
+              <span>根据标签推荐</span>
+              <p>{{ goalRecommendHint }}</p>
+            </div>
+            <button type="button" :disabled="recommendedGoals.length === 0" @click="addRecommendedGoals">
+              一键加入推荐目标
+            </button>
+            <div v-if="recommendedGoals.length" class="goal-recommend-list">
+              <button
+                v-for="goal in recommendedGoals"
+                :key="goal.id"
+                type="button"
+                :class="{ selected: createForm.goalIds.includes(goal.id) }"
+                @click="toggleGoal(goal.id)"
+              >
+                <strong>{{ goal.title || '未命名目标' }}</strong>
+                <small>{{ goal.category || '未分类' }} · {{ normalizedProgress(goal.progress) }}%</small>
+              </button>
+            </div>
+          </div>
         </section>
 
         <section class="create-form-section section-options">
@@ -560,12 +594,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppShell from '../../components/AppShell.vue'
 import { useAuthStore } from '../../store/auth'
 import { createDecision, deleteDecision, generateDecisionAdvice, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
+import { getGoals, recommendGoals } from '../../api/goal'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -591,6 +626,9 @@ const reviewAdviceResult = ref(null)
 const createAdviceError = ref('')
 const detailAdviceError = ref('')
 const reviewAdviceError = ref('')
+const goalOptions = ref([])
+const recommendedGoals = ref([])
+const recommendingGoals = ref(false)
 const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} }, recent: [], pendingReview: [] })
 const searchResults = ref([])
 const decisionPage = ref(1)
@@ -611,6 +649,7 @@ const createForm = reactive({
   context: '',
   reason: '',
   tags: '',
+  goalIds: [],
   mood: '',
   urgency: 2,
   reviewTime: ''
@@ -685,6 +724,34 @@ const satisfactionBars = computed(() => {
     const value = satisfaction[item.label] || 0
     return { ...item, value, width: `${Math.max(8, Math.round((value / max) * 100))}%` }
   })
+})
+const mergedGoalOptions = computed(() => {
+  const merged = new Map()
+  for (const goal of recommendedGoals.value) {
+    if (goal?.id) merged.set(goal.id, goal)
+  }
+  for (const goal of goalOptions.value) {
+    if (goal?.id) merged.set(goal.id, goal)
+  }
+  return Array.from(merged.values())
+})
+const goalRecommendHint = computed(() => {
+  if (!createForm.tags) {
+    return '选择标签后，系统会自动推荐匹配的进行中目标。'
+  }
+  if (recommendingGoals.value) {
+    return '正在根据标签匹配长期目标...'
+  }
+  if (recommendedGoals.value.length === 0) {
+    return '暂未匹配到推荐目标，可以从下方手动选择。'
+  }
+  return `已推荐 ${recommendedGoals.value.length} 个目标，可一键加入本次决策。`
+})
+
+watch(() => createForm.tags, () => {
+  if (createDialogVisible.value) {
+    loadRecommendedGoals()
+  }
 })
 
 async function loadDashboard() {
@@ -771,6 +838,8 @@ function openCreateDialog() {
   createAdviceResult.value = null
   createAdviceError.value = ''
   createDialogVisible.value = true
+  loadGoalOptions()
+  loadRecommendedGoals()
 }
 
 async function openDetail(decision) {
@@ -924,11 +993,90 @@ function resetCreateForm() {
       context: '',
       reason: '',
       tags: '',
+    goalIds: [],
     mood: '',
     urgency: 2,
       reviewTime: ''
   })
   resetOptionTree()
+  recommendedGoals.value = []
+}
+
+async function loadGoalOptions() {
+  try {
+    goalOptions.value = normalizeGoalList(await getGoals({ status: 'IN_PROGRESS' }))
+  } catch (error) {
+    goalOptions.value = []
+  }
+}
+
+async function loadRecommendedGoals() {
+  const tags = splitCreateTags(createForm.tags)
+  if (tags.length === 0) {
+    recommendedGoals.value = []
+    return
+  }
+  recommendingGoals.value = true
+  try {
+    recommendedGoals.value = normalizeGoalList(await recommendGoals(tags))
+  } catch (error) {
+    recommendedGoals.value = []
+  } finally {
+    recommendingGoals.value = false
+  }
+}
+
+function addRecommendedGoals() {
+  const ids = recommendedGoals.value.map((goal) => goal.id).filter(Boolean)
+  createForm.goalIds = Array.from(new Set([...createForm.goalIds, ...ids]))
+  if (ids.length > 0) {
+    ElMessage.success('已加入推荐目标')
+  }
+}
+
+function toggleGoal(goalId) {
+  if (!goalId) {
+    return
+  }
+  if (createForm.goalIds.includes(goalId)) {
+    createForm.goalIds = createForm.goalIds.filter((id) => id !== goalId)
+    return
+  }
+  createForm.goalIds = [...createForm.goalIds, goalId]
+}
+
+function splitCreateTags(value) {
+  if (!value) {
+    return []
+  }
+  return String(value)
+    .split(/[\s,，、]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function normalizeGoalList(data) {
+  if (Array.isArray(data)) {
+    return data
+  }
+  if (Array.isArray(data?.records)) {
+    return data.records
+  }
+  if (Array.isArray(data?.list)) {
+    return data.list
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items
+  }
+  return []
+}
+
+function normalizedProgress(value) {
+  const numberValue = Number(value)
+  if (Number.isNaN(numberValue)) {
+    return 0
+  }
+  return Math.min(100, Math.max(0, Math.round(numberValue)))
 }
 
 function formatDate(value) {
@@ -1077,9 +1225,21 @@ function buildAdvicePayload(decision, reviewInfo = {}) {
     selectedOption: decision.finalChoice || summary.selected || '',
     satisfaction: reviewInfo.satisfaction || decision.satisfaction || '',
     feedback: reviewInfo.feedback || decision.feedback || '',
+    goalId: decision.goalId || null,
+    goalIds: normalizeDecisionGoalIds(decision),
     historySummary: buildHistorySummary(),
     options: buildAdviceOptions(decision)
   }
+}
+
+function normalizeDecisionGoalIds(decision) {
+  if (Array.isArray(decision.goalIds)) {
+    return decision.goalIds
+  }
+  if (Array.isArray(decision.goals)) {
+    return decision.goals.map((goal) => goal.id).filter(Boolean)
+  }
+  return decision.goalId ? [decision.goalId] : []
 }
 
 function buildHistorySummary() {

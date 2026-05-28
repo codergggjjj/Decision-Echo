@@ -9,12 +9,15 @@ import com.exam.exam_backed.advice.vo.DecisionAdviceResponse;
 import com.exam.exam_backed.common.BusinessException;
 import com.exam.exam_backed.common.ErrorCode;
 import com.exam.exam_backed.decision.Decision;
+import com.exam.exam_backed.decision.DecisionGoal;
+import com.exam.exam_backed.decision.mapper.DecisionGoalMapper;
 import com.exam.exam_backed.decision.mapper.DecisionMapper;
 import com.exam.exam_backed.goal.Goal;
 import com.exam.exam_backed.goal.mapper.GoalMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -38,18 +41,24 @@ public class AdviceServiceImpl implements AdviceService {
 
     private final SystemConfigMapper systemConfigMapper;
     private final DecisionMapper decisionMapper;
+    private final DecisionGoalMapper decisionGoalMapper;
     private final GoalMapper goalMapper;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper) {
-        this(systemConfigMapper, decisionMapper, null);
+        this(systemConfigMapper, decisionMapper, null, null);
+    }
+
+    public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper, GoalMapper goalMapper) {
+        this(systemConfigMapper, decisionMapper, null, goalMapper);
     }
 
     @Autowired
-    public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper, GoalMapper goalMapper) {
+    public AdviceServiceImpl(SystemConfigMapper systemConfigMapper, DecisionMapper decisionMapper, DecisionGoalMapper decisionGoalMapper, GoalMapper goalMapper) {
         this.systemConfigMapper = systemConfigMapper;
         this.decisionMapper = decisionMapper;
+        this.decisionGoalMapper = decisionGoalMapper;
         this.goalMapper = goalMapper;
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClient.newBuilder()
@@ -85,10 +94,14 @@ public class AdviceServiceImpl implements AdviceService {
     }
 
     private String configValue(String key, String defaultValue) {
-        return systemConfigMapper.findValueByKey(key)
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .orElse(defaultValue);
+        try {
+            return systemConfigMapper.findValueByKey(key)
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .orElse(defaultValue);
+        } catch (DataAccessException exception) {
+            return defaultValue;
+        }
     }
 
     private DecisionAdviceResponse requestAdvice(AdviceGenerateRequest decision, AiSettings settings, String historySummary, Long userId) {
@@ -152,7 +165,7 @@ public class AdviceServiceImpl implements AdviceService {
                 3. 不要编造用户没有提供的信息。
                 4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 分析要简洁、具体、可执行。
-                6. 如果提供了长期目标信息，必须额外分析每个候选方案对长期目标的契合度。
+                6. 如果提供了长期目标信息，必须额外分析每个候选方案对长期目标的契合度；如果关联了多个目标，请给出整体契合度和逐目标简要分析。
                 7. 输出必须是合法 JSON，不要输出 Markdown，不要输出 JSON 以外的解释。
 
                 用户决策信息：
@@ -215,7 +228,7 @@ public class AdviceServiceImpl implements AdviceService {
                 3. 不要编造用户没有提供的信息。
                 4. 历史数据只作为参考；如果历史数据较少，必须明确说明建议主要基于当前决策信息。
                 5. 建议要具体、简洁、可执行。
-                6. 如果提供了长期目标信息，必须额外分析这次选择与长期目标的契合度。
+                6. 如果提供了长期目标信息，必须额外分析这次选择与长期目标的契合度；如果关联了多个目标，请给出整体契合度和逐目标简要分析。
                 7. 总字数控制在 300 字以内。
                 8. 必须严格按照指定 JSON 格式输出，不要输出 Markdown 或 JSON 以外的解释。
 
@@ -273,46 +286,75 @@ public class AdviceServiceImpl implements AdviceService {
     }
 
     private String buildGoalContext(AdviceGenerateRequest request, Long userId) {
-        Goal goal = resolveGoal(request, userId);
-        if (goal == null) {
+        List<Goal> goals = resolveGoals(request, userId);
+        if (goals.isEmpty()) {
             return "";
         }
-        return """
-                标题：%s
-                描述：%s
-                分类：%s
-                优先级：%s
-                衡量方式：%s
-                预期完成日期：%s
-                当前进度：%s%%
-                """.formatted(
-                fallback(goal.getTitle(), "未填写"),
-                fallback(goal.getDescription(), "未填写"),
-                fallback(goal.getCategory(), "未填写"),
-                fallback(goal.getPriority(), "MEDIUM"),
-                fallback(goal.getMeasurement(), "未填写"),
-                goal.getTargetDate() == null ? "未设置" : goal.getTargetDate().toString(),
-                goal.getProgress() == null ? 0 : goal.getProgress()
-        );
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < goals.size(); index++) {
+            Goal goal = goals.get(index);
+            builder.append("目标 ").append(index + 1).append("：\n")
+                    .append("标题：").append(fallback(goal.getTitle(), "未填写")).append('\n')
+                    .append("描述：").append(fallback(goal.getDescription(), "未填写")).append('\n')
+                    .append("分类：").append(fallback(goal.getCategory(), "未填写")).append('\n')
+                    .append("优先级：").append(fallback(goal.getPriority(), "MEDIUM")).append('\n')
+                    .append("衡量方式：").append(fallback(goal.getMeasurement(), "未填写")).append('\n')
+                    .append("预期完成日期：").append(goal.getTargetDate() == null ? "未设置" : goal.getTargetDate()).append('\n')
+                    .append("当前进度：").append(goal.getProgress() == null ? 0 : goal.getProgress()).append("%\n");
+        }
+        return builder.toString();
     }
 
-    private Goal resolveGoal(AdviceGenerateRequest request, Long userId) {
+    private List<Goal> resolveGoals(AdviceGenerateRequest request, Long userId) {
         if (goalMapper == null || userId == null) {
-            return null;
+            return List.of();
         }
-        Long goalId = request.goalId();
-        if (goalId == null && request.decisionId() != null) {
-            goalId = decisionMapper.findByIdAndUserId(request.decisionId(), userId)
+        List<Long> goalIds = resolveGoalIds(request, userId);
+        if (goalIds.isEmpty()) {
+            return List.of();
+        }
+        List<Goal> goals = new ArrayList<>();
+        for (Long goalId : goalIds) {
+            Goal goal = goalMapper.selectOne(new LambdaQueryWrapper<Goal>()
+                    .eq(Goal::getId, goalId)
+                    .eq(Goal::getUserId, userId)
+                    .last("LIMIT 1"));
+            if (goal != null) {
+                goals.add(goal);
+            }
+        }
+        return goals;
+    }
+
+    private List<Long> resolveGoalIds(AdviceGenerateRequest request, Long userId) {
+        List<Long> ids = new ArrayList<>();
+        if (request.goalId() != null) {
+            ids.add(request.goalId());
+        }
+        if (request.goalIds() != null) {
+            request.goalIds().stream()
+                    .filter(id -> id != null && id > 0)
+                    .forEach(ids::add);
+        }
+        if (ids.isEmpty() && request.decisionId() != null) {
+            if (decisionGoalMapper != null) {
+                try {
+                    decisionGoalMapper.selectList(new LambdaQueryWrapper<DecisionGoal>()
+                                    .eq(DecisionGoal::getDecisionId, request.decisionId()))
+                            .stream()
+                            .map(DecisionGoal::getGoalId)
+                            .filter(id -> id != null && id > 0)
+                            .forEach(ids::add);
+                } catch (DataAccessException exception) {
+                    // Fall back to legacy decision.goal_id below.
+                }
+            }
+            decisionMapper.findByIdAndUserId(request.decisionId(), userId)
                     .map(Decision::goalId)
-                    .orElse(null);
+                    .filter(id -> id != null && id > 0)
+                    .ifPresent(ids::add);
         }
-        if (goalId == null) {
-            return null;
-        }
-        return goalMapper.selectOne(new LambdaQueryWrapper<Goal>()
-                .eq(Goal::getId, goalId)
-                .eq(Goal::getUserId, userId)
-                .last("LIMIT 1"));
+        return ids.stream().distinct().toList();
     }
 
     private String buildHistorySummary(AdviceGenerateRequest currentDecision, Long userId) {
