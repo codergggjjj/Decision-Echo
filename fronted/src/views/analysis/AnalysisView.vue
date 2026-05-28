@@ -1,28 +1,11 @@
 <template>
-  <main class="analysis-page">
-    <header class="analysis-header">
+  <AppShell v-model:search-value="shellSearch" active="analysis" page-class="analysis-shell-page" @create="handleCreateFromAnalysis">
+    <div class="analysis-layout">
+      <header class="analysis-header">
       <div>
         <span>图表分析</span>
         <h1>决策结果分析</h1>
         <p>先从已回测决策的满意度分布开始，后续图表会继续补齐。</p>
-      </div>
-      <div class="memory-actions analysis-actions">
-        <nav class="top-view-nav" aria-label="页面切换">
-          <button type="button" @click="goDashboard">决策记录</button>
-          <button type="button" class="active" @click="goAnalysis">图表分析</button>
-        </nav>
-        <div class="avatar-menu">
-          <button type="button" class="avatar-nav-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
-            <span class="avatar-frame">
-              <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-              <span v-else>{{ avatarInitial }}</span>
-            </span>
-            <span class="avatar-chevron" aria-hidden="true"></span>
-          </button>
-          <button type="button" class="top-icon-button logout-icon-button" aria-label="退出登录" title="退出登录" @click="handleLogout">
-            <span class="logout-icon" aria-hidden="true"></span>
-          </button>
-        </div>
       </div>
     </header>
 
@@ -114,7 +97,8 @@
         <div v-show="!isTagEmpty" ref="tagChartRef" class="tag-chart" aria-label="标签分布柱状图"></div>
       </article>
     </section>
-  </main>
+    </div>
+  </AppShell>
 </template>
 
 <script setup>
@@ -125,6 +109,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getMoodSatisfaction, getSatisfactionPie, getTagBar, getTrendLine } from '../../api/analysis'
+import AppShell from '../../components/AppShell.vue'
 import { useAuthStore } from '../../store/auth'
 
 use([PieChart, LineChart, BarChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
@@ -147,6 +132,7 @@ const filters = ref({
   mood: ''
 })
 const selectedMonth = ref('')
+const shellSearch = ref('')
 let chartInstance = null
 let trendChartInstance = null
 let tagChartInstance = null
@@ -426,6 +412,10 @@ function resizeChart() {
 }
 
 function goDashboard() {
+  router.push('/dashboard')
+}
+
+function handleCreateFromAnalysis() {
   router.push('/dashboard')
 }
 
@@ -1125,6 +1115,253 @@ onBeforeUnmount(() => {
 
   .placeholder-card {
     grid-template-columns: 1fr;
+  }
+}
+
+:global(.analysis-shell-page .reference-shell) {
+  background: transparent;
+}
+
+.analysis-layout {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.analysis-layout .analysis-header,
+.analysis-layout .analysis-grid {
+  width: 100%;
+  max-width: none;
+}
+
+.analysis-layout .analysis-header {
+  display: block;
+  margin: 0 0 22px;
+  padding: 0;
+}
+
+.analysis-layout .analysis-header > div:first-child > span,
+.analysis-layout .card-title span,
+.analysis-layout .trend-title span,
+.analysis-layout .mood-title span,
+.analysis-layout .tag-title span {
+  color: #fb7299;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.analysis-layout .analysis-header h1 {
+  margin: 8px 0 0;
+  color: #191c1e;
+  font-size: clamp(34px, 4vw, 54px);
+  line-height: 1.08;
+  text-shadow: none;
+}
+
+.analysis-layout .analysis-header p {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: rgba(84, 66, 72, 0.78);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.analysis-layout .analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+}
+
+.analysis-layout .analysis-card,
+.analysis-layout .mood-bar-row {
+  border: 1px solid rgba(217, 192, 199, 0.36);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 4px 20px rgba(25, 28, 30, 0.05);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.analysis-layout .analysis-card {
+  padding: 24px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.analysis-layout .analysis-card:hover {
+  border-color: rgba(158, 58, 104, 0.24);
+  box-shadow: 0 8px 30px rgba(25, 28, 30, 0.08);
+  transform: translateY(-1px);
+}
+
+.analysis-layout .pie-card {
+  min-height: 520px;
+}
+
+.analysis-layout .card-title,
+.analysis-layout .trend-title,
+.analysis-layout .mood-title,
+.analysis-layout .tag-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.analysis-layout .card-title h2,
+.analysis-layout .trend-title h2,
+.analysis-layout .mood-title h2,
+.analysis-layout .tag-title h2 {
+  margin: 6px 0 0;
+  color: #191c1e;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.analysis-layout .card-title strong,
+.analysis-layout .trend-title strong,
+.analysis-layout .mood-title strong,
+.analysis-layout .tag-title strong {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: rgba(218, 248, 255, 0.76);
+  color: #0094c7;
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 8px 20px rgba(0, 161, 214, 0.1);
+  text-align: center;
+}
+
+.analysis-layout .analysis-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.analysis-layout .analysis-filters :deep(.el-select__wrapper),
+.analysis-layout .trend-controls :deep(.el-select__wrapper) {
+  min-height: 44px;
+  border: 1px solid rgba(217, 192, 199, 0.54);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: none;
+}
+
+.analysis-layout .analysis-filters :deep(.el-select__wrapper:hover),
+.analysis-layout .analysis-filters :deep(.el-select__wrapper.is-focused),
+.analysis-layout .trend-controls :deep(.el-select__wrapper:hover),
+.analysis-layout .trend-controls :deep(.el-select__wrapper.is-focused) {
+  border-color: rgba(158, 58, 104, 0.48);
+  box-shadow: 0 0 0 3px rgba(244, 127, 176, 0.1);
+}
+
+.analysis-layout .trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.analysis-layout .trend-controls button {
+  min-height: 44px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #f2f4f6;
+  color: #544248;
+  font-weight: 900;
+  box-shadow: none;
+}
+
+.analysis-layout .trend-controls button.active {
+  background: #9e3a68;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(158, 58, 104, 0.2);
+}
+
+.analysis-layout .trend-controls .el-select {
+  width: 220px;
+}
+
+.analysis-layout .pie-chart {
+  height: 420px;
+  margin-top: 18px;
+}
+
+.analysis-layout .trend-chart,
+.analysis-layout .tag-chart {
+  height: 250px;
+  margin-top: 18px;
+}
+
+.analysis-layout .analysis-empty,
+.analysis-layout .trend-empty,
+.analysis-layout .tag-empty,
+.analysis-layout .mood-empty {
+  display: grid;
+  min-height: 240px;
+  place-content: center;
+  border: 1px dashed rgba(217, 192, 199, 0.62);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #191c1e;
+  text-align: center;
+}
+
+.analysis-layout .analysis-empty p,
+.analysis-layout .trend-empty p,
+.analysis-layout .tag-empty p,
+.analysis-layout .mood-empty p {
+  color: rgba(84, 66, 72, 0.76);
+}
+
+.analysis-layout .mood-bars {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.analysis-layout .mood-bar-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+  padding: 14px;
+}
+
+.analysis-layout .mood-result i {
+  background: #f2f4f6;
+}
+
+.analysis-layout .mood-result.tone-good i::before {
+  background: #7edbf1;
+}
+
+.analysis-layout .mood-result.tone-normal i::before {
+  background: #ff9ac2;
+}
+
+.analysis-layout .mood-result.tone-bad i::before {
+  background: #f4d77c;
+}
+
+@media (max-width: 720px) {
+  .analysis-layout .analysis-filters,
+  .analysis-layout .mood-bar-row,
+  .analysis-layout .mood-result-list {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-layout .card-title,
+  .analysis-layout .trend-title,
+  .analysis-layout .mood-title,
+  .analysis-layout .tag-title {
+    display: grid;
+  }
+
+  .analysis-layout .trend-controls .el-select {
+    width: 100%;
   }
 }
 </style>

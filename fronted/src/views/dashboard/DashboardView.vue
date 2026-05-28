@@ -1,57 +1,11 @@
-<template>
-  <main class="dashboard-page reference-dashboard content-first-dashboard" v-loading="loading">
-    <nav class="reference-topbar" aria-label="顶部导航">
-      <button type="button" class="reference-brand compact-brand" @click="goDashboard">决策回声</button>
-      <div class="reference-top-search" role="search">
-        <span class="reference-search-icon" aria-hidden="true"></span>
-        <el-input
-          v-model.trim="searchForm.keyword"
-          clearable
-          placeholder="搜索决策、标签..."
-          @keyup.enter="executeDecisionSearch"
-          @clear="executeDecisionSearch"
-        />
-      </div>
-      <div class="reference-top-actions">
-        <button type="button" class="reference-avatar-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
-          <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-          <span v-else>{{ avatarInitial }}</span>
-        </button>
-        <button type="button" class="reference-icon-button reference-logout-button danger" aria-label="退出登录" title="退出登录" @click="handleLogout">
-          <span class="reference-logout-icon" aria-hidden="true"></span>
-        </button>
-      </div>
-    </nav>
-
-    <aside class="reference-sidebar" aria-label="主页导航">
-      <div class="reference-sidebar-title">
-        <div class="reference-logo-mark" aria-hidden="true"></div>
-        <div>
-          <h2>决策回声</h2>
-          <p>个人决策回测器</p>
-        </div>
-      </div>
-      <nav class="reference-side-links">
-        <button type="button" class="active" @click="goDashboard">
-          <span>首</span>
-          首页
-        </button>
-        <button type="button" @click="goAnalysis">
-          <span>统</span>
-          统计
-        </button>
-        <button type="button" @click="goProfile">
-          <span>我</span>
-          我的
-        </button>
-      </nav>
-      <button type="button" class="reference-side-create" @click="openCreateDialog">
-        <span>+</span>
-        记录新决定
-      </button>
-    </aside>
-
-    <section class="reference-shell">
+﻿<template>
+  <AppShell
+    v-model:search-value="searchForm.keyword"
+    active="dashboard"
+    v-loading="loading"
+    @search="executeDecisionSearch"
+    @create="openCreateDialog"
+  >
       <div class="reference-dashboard-grid">
         <section class="reference-left-column">
           <header class="reference-mobile-heading">
@@ -124,6 +78,20 @@
                 <div v-if="decision.context" class="decision-context-preview">
                   <span>背景信息</span>
                   <p>{{ decision.context }}</p>
+                </div>
+                <div v-if="optionSummary(decision.options).items.length" class="candidate-options-preview">
+                  <span>候选方案</span>
+                  <div class="candidate-option-row">
+                    <span
+                      v-for="item in optionSummary(decision.options).items"
+                      :key="item.id || item.title"
+                      class="candidate-option-chip"
+                      :class="{ selected: item.title === optionSummary(decision.options).selected }"
+                    >
+                      <strong>{{ item.title }}</strong>
+                      <i v-if="item.strategy">{{ item.strategy }}</i>
+                    </span>
+                  </div>
                 </div>
                 <div class="memory-foot">
                   <div v-if="optionSummary(decision.options).selected" class="selected-option-preview">
@@ -234,8 +202,6 @@
           </section>
         </aside>
       </div>
-    </section>
-
     <button type="button" class="floating-create" @click="openCreateDialog">
       <span>记录新决定</span>
       <strong>+</strong>
@@ -432,9 +398,12 @@
           <p v-else>未记录候选方案</p>
         </section>
 
-        <section class="detail-section">
+        <section class="detail-section detail-final-choice">
           <span>最终选择</span>
-          <p>{{ decisionDetail.finalChoice || '旧记录未标记最终选择' }}</p>
+          <div class="final-choice-content">
+            <span class="final-choice-icon">✓</span>
+            <p>{{ decisionDetail.finalChoice || '旧记录未标记最终选择' }}</p>
+          </div>
         </section>
 
         <section class="detail-section">
@@ -450,7 +419,7 @@
 
         <section class="ai-advice-card detail-ai-advice-card">
           <div>
-            <span>AI 复盘建议</span>
+            <span>✦ AI 复盘建议</span>
             <p>基于这条决策的背景和候选方案，生成一份利弊分析。</p>
           </div>
           <el-button
@@ -587,13 +556,14 @@
       </template>
     </el-dialog>
 
-  </main>
+  </AppShell>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AppShell from '../../components/AppShell.vue'
 import { useAuthStore } from '../../store/auth'
 import { createDecision, deleteDecision, generateDecisionAdvice, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
 
@@ -699,10 +669,9 @@ const satisfactionRate = computed(() => {
   return reviewed === 0 ? '0%' : `${Math.round((satisfied / reviewed) * 100)}%`
 })
 const overviewCards = computed(() => [
-  { label: '全部记录', value: summary.value.total, note: '已经写下的选择', tone: 'mint' },
-  { label: '待回看', value: summary.value.pending, note: '到点需要复盘', tone: 'yellow' },
-  { label: '已复盘', value: summary.value.reviewed, note: '有了结果反馈', tone: 'coral' },
-  { label: '满意率', value: satisfactionRate.value, note: '满意 / 已复盘', tone: 'ink' }
+  { label: '总决策数', value: summary.value.total, note: '已经写下的选择', tone: 'mint' },
+  { label: '待回看', value: summary.value.pending, note: '本周需处理', tone: 'yellow' },
+  { label: '已复盘', value: summary.value.reviewed, note: `满意率 ${satisfactionRate.value}`, tone: 'coral' }
 ])
 const satisfactionBars = computed(() => {
   const items = [
@@ -1191,3 +1160,4 @@ onMounted(async () => {
   }
 })
 </script>
+
