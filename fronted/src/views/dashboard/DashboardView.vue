@@ -1,196 +1,216 @@
 <template>
-  <main class="dashboard-page youth-dashboard content-first-dashboard" v-loading="loading">
-    <header class="memory-header">
-      <div>
-        <h1>决策回声</h1>
-        <p>{{ greeting }}，先看过去留下的记录，再决定要不要补一条新的。</p>
+  <main class="dashboard-page reference-dashboard content-first-dashboard" v-loading="loading">
+    <nav class="reference-topbar" aria-label="顶部导航">
+      <button type="button" class="reference-brand" @click="goDashboard">决策回声</button>
+      <div class="reference-top-actions">
+        <button type="button" class="reference-avatar-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
+          <span v-else>{{ avatarInitial }}</span>
+        </button>
+        <button type="button" class="reference-icon-button reference-logout-button danger" aria-label="退出登录" title="退出登录" @click="handleLogout">
+          <span class="reference-logout-icon" aria-hidden="true"></span>
+        </button>
       </div>
-      <div class="memory-actions">
-        <nav class="top-view-nav" aria-label="页面切换">
-          <button type="button" class="active" @click="goDashboard">决策记录</button>
-          <button type="button" @click="goAnalysis">图表分析</button>
-        </nav>
-        <div class="avatar-menu">
-          <button type="button" class="avatar-nav-button" aria-label="进入个人中心" title="进入个人主页" @click="goProfile">
-            <span class="avatar-frame">
-              <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-              <span v-else>{{ avatarInitial }}</span>
-            </span>
-            <span class="avatar-chevron" aria-hidden="true"></span>
-          </button>
-          <button type="button" class="top-icon-button logout-icon-button" aria-label="退出登录" title="退出登录" @click="handleLogout">
-            <span class="logout-icon" aria-hidden="true"></span>
-          </button>
-        </div>
+    </nav>
+
+    <aside class="reference-sidebar" aria-label="主页导航">
+      <div class="reference-sidebar-title">
+        <h2>决策回声</h2>
+        <p>管理平台</p>
       </div>
-    </header>
+      <nav class="reference-side-links">
+        <button type="button" class="active" @click="goDashboard">
+          <span>首</span>
+          首页
+        </button>
+        <button type="button" @click="goDashboard">
+          <span>历</span>
+          历史
+        </button>
+        <button type="button" @click="goAnalysis">
+          <span>统</span>
+          统计
+        </button>
+        <button type="button" @click="goProfile">
+          <span>我</span>
+          我的
+        </button>
+      </nav>
+      <button type="button" class="reference-side-create" @click="openCreateDialog">
+        <span>+</span>
+        记录新决定
+      </button>
+    </aside>
 
-    <section class="memory-metrics" aria-label="决策统计">
-      <article v-for="item in overviewCards" :key="item.label" class="metric-chip" :class="`tone-${item.tone}`">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
-    </section>
-
-    <section class="memory-layout">
-      <section class="history-stage">
-        <div class="section-title memory-title">
-          <div>
-            <span>我的回看流</span>
-            <h2>过去的记录</h2>
-          </div>
-        </div>
-
-        <section class="decision-search-panel">
-          <div class="decision-search-main">
-            <label class="decision-search-field">
-              <span>决策名</span>
-              <el-input
-                v-model.trim="searchForm.keyword"
-                clearable
-                placeholder="搜决策名，比如 周末课程"
-                @keyup.enter="executeDecisionSearch"
-              />
-            </label>
-            <label class="decision-search-field compact">
-              <span>标签</span>
-              <el-select v-model="searchForm.tag" clearable placeholder="全部标签">
-                <el-option v-for="item in tagOptions" :key="item" :label="item" :value="item" />
-              </el-select>
-            </label>
-          </div>
-          <div class="decision-search-actions">
-            <div class="decision-status-filter" aria-label="决策状态筛选">
-              <button
-                v-for="item in statusFilterOptions"
-                :key="item.value"
-                type="button"
-                :class="{ active: searchForm.status === item.value }"
-                @click="selectDecisionStatus(item.value)"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-            <div class="decision-search-buttons">
-              <el-button :loading="isSearching" class="primary-action search-submit" type="primary" @click="executeDecisionSearch">查询</el-button>
-              <el-button :disabled="(!hasSearchFilters && !isSearchMode) || isSearching" @click="resetDecisionSearch">清空</el-button>
-            </div>
-          </div>
-        </section>
-
-        <div v-if="recentDecisions.length === 0" class="empty-state youth-empty">
-          <strong>{{ isSearchMode ? '没有找到匹配的决策' : '还没有决策记录' }}</strong>
-          <p>{{ isSearchMode ? '换个关键词、标签或状态再试试。' : '从一个小选择开始，比如要不要买某样东西、报名某个课程。' }}</p>
-        </div>
-
-        <div v-else class="memory-feed">
-          <article
-            v-for="decision in pagedRecentDecisions"
-            :key="decision.id"
-            class="memory-item clickable"
-            :class="statusClass(decision.status)"
-            tabindex="0"
-            @click="openDetail(decision)"
-            @keydown.enter.self="openDetail(decision)"
-          >
-            <div class="memory-date">
-              <span>
-                <b>{{ formatDate(decision.reviewTime).slice(0, 5) }}</b>
-                <b>{{ formatDate(decision.reviewTime).slice(5, 10) }}</b>
-              </span>
-              <small>{{ urgencyText(decision.urgency) }}</small>
-            </div>
-            <div class="memory-body">
-              <div class="memory-head">
-                <span :class="['status-pill', statusClass(decision.status)]">{{ statusText(decision.status) }}</span>
-                <i>{{ decision.tags || '未分类' }}</i>
-                <button
-                  v-if="decision.status !== 'reviewed'"
-                  type="button"
-                  class="featured-review"
-                  @click.stop="openReview(decision)"
-                >
-                  现在回看
-                </button>
-              </div>
-              <h3>{{ decision.title }}</h3>
-              <div v-if="optionSummary(decision.options).selected" class="selected-option-preview">
-                <span>最终选择</span>
-                <strong>{{ optionSummary(decision.options).selected }}</strong>
-                <i v-if="optionSummary(decision.options).selectedStrategy">{{ optionSummary(decision.options).selectedStrategy }}</i>
-              </div>
-              <div v-if="optionSummary(decision.options).items.length" class="option-mini-tree">
-                <div
-                  v-for="item in optionSummary(decision.options).items"
-                  :key="item.id || item.title"
-                  class="option-mini-item"
-                  :class="{ selected: item.title === optionSummary(decision.options).selected }"
-                >
-                  <span>
-                    {{ item.title }}
-                    <i v-if="item.strategy">{{ item.strategy }}</i>
-                  </span>
-                  <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
-                </div>
-              </div>
-              <div class="memory-foot">
-                <div class="memory-foot-actions">
-                  <button type="button" class="inline-detail" @click.stop="openDetail(decision)">查看详情</button>
-                  <button type="button" class="inline-delete" :disabled="deletingDecisionId === decision.id" @click.stop="confirmDelete(decision)">删除</button>
-                </div>
-              </div>
-            </div>
+    <section class="reference-shell">
+      <div class="reference-dashboard-grid">
+        <section class="memory-metrics" aria-label="决策统计">
+          <article v-for="item in overviewCards" :key="item.label" class="metric-chip" :class="`tone-${item.tone}`">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
           </article>
-          <el-pagination
-            v-if="recentDecisions.length > decisionPageSize"
-            v-model:current-page="decisionPage"
-            :page-size="decisionPageSize"
-            :total="recentDecisions.length"
-            background
-            class="decision-pagination"
-            layout="prev, pager, next"
-          />
-        </div>
-      </section>
-
-      <aside class="review-dock">
-        <section class="dock-panel highlight-review">
-          <div class="section-title memory-title">
-            <div>
-              <span>待处理</span>
-              <h2>待回看</h2>
-            </div>
-            <strong>{{ pendingReview.length }}</strong>
-          </div>
-
-          <div v-if="pendingReview.length === 0" class="mini-empty">没有积压，状态很轻。</div>
-          <div v-else class="review-stack">
-            <article v-for="decision in pendingReview" :key="decision.id" class="review-ticket">
-              <span>{{ formatDate(decision.reviewTime) }}</span>
-              <h3>{{ decision.title }}</h3>
-              <button type="button" @click="openReview(decision)">补回测</button>
-            </article>
-          </div>
         </section>
 
-        <section class="dock-panel">
-          <div class="section-title memory-title">
-            <div>
-              <span>复盘心情</span>
-              <h2>回测结果</h2>
-            </div>
-          </div>
-          <div class="satisfaction-stack compact">
-            <div v-for="item in satisfactionBars" :key="item.label" class="mood-row" :class="`mood-${item.key}`">
-              <div>
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
+        <section class="reference-left-column">
+          <header class="reference-mobile-heading">
+            <h1>决策回声</h1>
+            <p>{{ greeting }}，先看过去留下的记录，再决定要不要补一条新的。</p>
+          </header>
+
+          <section class="decision-search-panel">
+            <div class="decision-search-main">
+              <label class="decision-search-field">
+                <span>决策名</span>
+                <el-input
+                  v-model.trim="searchForm.keyword"
+                  clearable
+                  placeholder="搜决策名，比如 周末课程"
+                  @keyup.enter="executeDecisionSearch"
+                />
+              </label>
+              <label class="decision-search-field compact">
+                <span>标签</span>
+                <el-select v-model="searchForm.tag" clearable placeholder="全部标签">
+                  <el-option v-for="item in tagOptions" :key="item" :label="item" :value="item" />
+                </el-select>
+              </label>
+              <div class="decision-search-buttons">
+                <el-button :loading="isSearching" class="primary-action search-submit" type="primary" @click="executeDecisionSearch">查询</el-button>
+                <el-button :disabled="(!hasSearchFilters && !isSearchMode) || isSearching" @click="resetDecisionSearch">清空</el-button>
               </div>
-              <div class="mood-track"><i :style="{ width: item.width }"></i></div>
             </div>
+          </section>
+
+          <div class="decision-status-filter" aria-label="决策状态筛选">
+            <button
+              v-for="item in statusFilterOptions"
+              :key="item.value"
+              type="button"
+              :class="{ active: searchForm.status === item.value }"
+              @click="selectDecisionStatus(item.value)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+
+          <div v-if="recentDecisions.length === 0" class="empty-state youth-empty">
+            <strong>{{ isSearchMode ? '没有找到匹配的决策' : '还没有决策记录' }}</strong>
+            <p>{{ isSearchMode ? '换个关键词、标签或状态再试试。' : '从一个小选择开始，比如要不要买某样东西、报名某个课程。' }}</p>
+          </div>
+
+          <div v-else class="memory-feed">
+            <article
+              v-for="decision in pagedRecentDecisions"
+              :key="decision.id"
+              class="memory-item clickable"
+              :class="statusClass(decision.status)"
+              tabindex="0"
+              @click="openDetail(decision)"
+              @keydown.enter.self="openDetail(decision)"
+            >
+              <div class="memory-date">
+                <span>
+                  <b>{{ formatDate(decision.reviewTime).slice(0, 5) }}</b>
+                  <b>{{ formatDate(decision.reviewTime).slice(5, 10) }}</b>
+                </span>
+                <small>{{ urgencyText(decision.urgency) }}</small>
+              </div>
+              <div class="memory-body">
+                <div class="memory-head">
+                  <span :class="['status-pill', statusClass(decision.status)]">{{ statusText(decision.status) }}</span>
+                  <i>{{ decision.tags || '未分类' }}</i>
+                  <button
+                    v-if="decision.status !== 'reviewed'"
+                    type="button"
+                    class="featured-review"
+                    @click.stop="openReview(decision)"
+                  >
+                    现在回看
+                  </button>
+                </div>
+                <h3>{{ decision.title }}</h3>
+                <div v-if="decision.context" class="decision-context-preview">
+                  <span>背景</span>
+                  <p>{{ decision.context }}</p>
+                </div>
+                <div v-if="optionSummary(decision.options).selected" class="selected-option-preview">
+                  <span>最终选择</span>
+                  <strong>{{ optionSummary(decision.options).selected }}</strong>
+                  <i v-if="optionSummary(decision.options).selectedStrategy">{{ optionSummary(decision.options).selectedStrategy }}</i>
+                </div>
+                <div v-if="optionSummary(decision.options).items.length" class="option-mini-tree">
+                  <div
+                    v-for="item in optionSummary(decision.options).items"
+                    :key="item.id || item.title"
+                    class="option-mini-item"
+                    :class="{ selected: item.title === optionSummary(decision.options).selected }"
+                  >
+                    <span>
+                      {{ item.title }}
+                      <i v-if="item.strategy">{{ item.strategy }}</i>
+                    </span>
+                    <small v-if="item.children?.length">{{ item.children.map((child) => child.title).join(' / ') }}</small>
+                  </div>
+                </div>
+                <div class="memory-foot">
+                  <div class="memory-foot-actions">
+                    <button type="button" class="inline-detail" @click.stop="openDetail(decision)">查看详情</button>
+                    <button type="button" class="inline-delete" :disabled="deletingDecisionId === decision.id" @click.stop="confirmDelete(decision)">删除</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <el-pagination
+              v-if="recentDecisions.length > decisionPageSize"
+              v-model:current-page="decisionPage"
+              :page-size="decisionPageSize"
+              :total="recentDecisions.length"
+              background
+              class="decision-pagination"
+              layout="prev, pager, next"
+            />
           </div>
         </section>
-      </aside>
+
+        <aside class="review-dock">
+          <section class="dock-panel highlight-review">
+            <div class="section-title memory-title">
+              <div>
+                <span>待处理</span>
+                <h2>待回看</h2>
+              </div>
+              <strong>{{ pendingReview.length }}</strong>
+            </div>
+
+            <div v-if="pendingReview.length === 0" class="mini-empty">没有积压，状态很轻。</div>
+            <div v-else class="review-stack">
+              <article v-for="decision in pendingReview" :key="decision.id" class="review-ticket">
+                <span>{{ formatDate(decision.reviewTime) }}</span>
+                <h3>{{ decision.title }}</h3>
+                <button type="button" @click="openReview(decision)">补回测</button>
+              </article>
+            </div>
+          </section>
+
+          <section class="dock-panel">
+            <div class="section-title memory-title">
+              <div>
+                <span>复盘心情</span>
+                <h2>回测结果统计</h2>
+              </div>
+            </div>
+            <div class="satisfaction-stack compact">
+              <div v-for="item in satisfactionBars" :key="item.label" class="mood-row" :class="`mood-${item.key}`">
+                <div>
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+                <div class="mood-track"><i :style="{ width: item.width }"></i></div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
     </section>
 
     <button type="button" class="floating-create" @click="openCreateDialog">
