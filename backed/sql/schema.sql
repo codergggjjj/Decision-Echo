@@ -119,10 +119,15 @@ CREATE TABLE IF NOT EXISTS `system_config` (
 
 INSERT INTO `system_config` (`config_key`, `config_value`, `description`)
 VALUES
+    ('advice.ai.api_key', 'sk-bf8318519128484f98814f4a4adb4dc3', 'AI API Key'),
     ('advice.ai.base_url', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'AI service base URL'),
     ('advice.ai.model', 'qwen-plus', 'AI model name')
 ON DUPLICATE KEY UPDATE
-    `config_value` = VALUES(`config_value`),
+    `config_value` = IF(
+        `config_key` = 'advice.ai.api_key' AND `config_value` <> '',
+        `config_value`,
+        VALUES(`config_value`)
+    ),
     `description` = VALUES(`description`),
     `deleted` = 0;
 

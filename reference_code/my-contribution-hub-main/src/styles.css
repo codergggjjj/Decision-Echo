@@ -1,0 +1,128 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  --color-background: #f7f9fb;
+  --color-surface: #f7f9fb;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-dim: #d8dadc;
+  --color-surface-variant: #e0e3e5;
+  --color-surface-container: #eceef0;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-surface-tint: #9e3a68;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+
+  --color-primary: #9e3a68;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #f47fb0;
+  --color-on-primary-container: #701343;
+  --color-primary-fixed: #ffd9e4;
+  --color-primary-fixed-dim: #ffb0cd;
+  --color-on-primary-fixed: #3e0021;
+  --color-on-primary-fixed-variant: #802150;
+  --color-inverse-primary: #ffb0cd;
+
+  --color-secondary: #0060ac;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #64a8fe;
+  --color-on-secondary-container: #003c70;
+  --color-secondary-fixed: #d4e3ff;
+  --color-secondary-fixed-dim: #a4c9ff;
+  --color-on-secondary-fixed: #001c39;
+  --color-on-secondary-fixed-variant: #004883;
+
+  --color-tertiary: #795900;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #d29d00;
+  --color-on-tertiary-container: #4d3800;
+  --color-tertiary-fixed: #ffdf9f;
+  --color-tertiary-fixed-dim: #f9bd22;
+  --color-on-tertiary-fixed: #261a00;
+  --color-on-tertiary-fixed-variant: #5c4300;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --color-background-fg: #191c1e;
+  --color-on-background: #191c1e;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #544248;
+  --color-outline: #877278;
+  --color-outline-variant: #d9c0c7;
+
+  --color-border: #e0e3e5;
+  --color-input: #e0e3e5;
+  --color-ring: #9e3a68;
+  --color-foreground: #191c1e;
+
+  --spacing-base: 4px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-gutter: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-container-margin: 16px;
+
+  --radius: 0.5rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+
+  --text-label-sm: 12px;
+  --text-label-md: 14px;
+  --text-body-md: 14px;
+  --text-body-lg: 16px;
+  --text-headline-sm: 18px;
+  --text-headline-md: 20px;
+  --text-display-lg: 32px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-outline-variant);
+  }
+  html, body {
+    background: linear-gradient(135deg, #fce4ec 0%, #e3f2fd 100%);
+    min-height: 100vh;
+    color: var(--color-on-background);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  }
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: "liga";
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+}

@@ -34,15 +34,42 @@
             {{ item.label }}
           </button>
         </div>
-        <div class="goal-filter-actions">
-          <button type="button" @click="showFilterHint">
-            分类
-            <span>⌄</span>
-          </button>
-          <button type="button" @click="showFilterHint">
-            优先级
-            <span>⌄</span>
-          </button>
+        <div class="goal-filter-actions" @click.stop>
+          <div class="goal-filter-menu" :class="{ open: categoryMenuOpen }">
+            <button type="button" class="goal-filter-trigger" @click="toggleCategoryMenu">
+              {{ categoryFilterLabel }}
+              <span>⌄</span>
+            </button>
+            <div v-if="categoryMenuOpen" class="goal-filter-dropdown">
+              <button type="button" :class="{ active: selectedCategory === '' }" @click="selectCategory('')">全部分类</button>
+              <button
+                v-for="category in categoryOptions"
+                :key="category"
+                type="button"
+                :class="{ active: selectedCategory === category }"
+                @click="selectCategory(category)"
+              >
+                {{ category }}
+              </button>
+            </div>
+          </div>
+          <div class="goal-filter-menu" :class="{ open: priorityMenuOpen }">
+            <button type="button" class="goal-filter-trigger" @click="togglePriorityMenu">
+              {{ priorityFilterLabel }}
+              <span>⌄</span>
+            </button>
+            <div v-if="priorityMenuOpen" class="goal-filter-dropdown">
+              <button
+                v-for="item in priorityFilters"
+                :key="item.value"
+                type="button"
+                :class="{ active: selectedPriority === item.value }"
+                @click="selectPriority(item.value)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -53,8 +80,8 @@
         <button type="button" @click="loadGoals">重新加载</button>
       </div>
       <div v-else-if="filteredGoals.length === 0" class="goal-state-card">
-        <strong>{{ keyword ? '没有找到匹配的目标' : '还没有长期目标' }}</strong>
-        <p>{{ keyword ? '换个关键词或状态再试试。' : '后端目标接口返回数据后，这里会展示你的长期目标。' }}</p>
+        <strong>{{ hasActiveFilters ? '没有找到匹配的目标' : '还没有长期目标' }}</strong>
+        <p>{{ hasActiveFilters ? '换个关键词、状态、分类或优先级再试试。' : '后端目标接口返回数据后，这里会展示你的长期目标。' }}</p>
       </div>
 
       <section v-else class="goal-grid" aria-label="长期目标列表">
@@ -105,7 +132,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppShell from '../../components/AppShell.vue'
@@ -118,6 +145,10 @@ const errorMessage = ref('')
 const goals = ref([])
 const keyword = ref('')
 const selectedStatus = ref('')
+const selectedCategory = ref('')
+const selectedPriority = ref('')
+const categoryMenuOpen = ref(false)
+const priorityMenuOpen = ref(false)
 const createDialogVisible = ref(false)
 
 const statusFilters = [
@@ -127,15 +158,34 @@ const statusFilters = [
   { label: '已放弃', value: 'ABANDONED' }
 ]
 
+const priorityFilters = [
+  { label: '全部优先级', shortLabel: '优先级', value: '' },
+  { label: '高优先级', shortLabel: '高优先级', value: 'HIGH' },
+  { label: '中优先级', shortLabel: '中优先级', value: 'MEDIUM' },
+  { label: '低优先级', shortLabel: '低优先级', value: 'LOW' }
+]
+
+const categoryOptions = computed(() => {
+  return Array.from(new Set(goals.value.map((goal) => goal.category).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'))
+})
+
+const categoryFilterLabel = computed(() => selectedCategory.value || '分类')
+
+const priorityFilterLabel = computed(() => {
+  return priorityFilters.find((item) => item.value === selectedPriority.value)?.shortLabel || '优先级'
+})
+
+const hasActiveFilters = computed(() => Boolean(keyword.value.trim() || selectedStatus.value || selectedCategory.value || selectedPriority.value))
+
 const filteredGoals = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  if (!text) {
-    return goals.value
-  }
   return goals.value.filter((goal) => {
-    return [goal.title, goal.description, goal.category]
+    const matchesText = !text || [goal.title, goal.description, goal.category]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(text))
+    const matchesCategory = !selectedCategory.value || goal.category === selectedCategory.value
+    const matchesPriority = !selectedPriority.value || goal.priority === selectedPriority.value
+    return matchesText && matchesCategory && matchesPriority
   })
 })
 
@@ -172,6 +222,31 @@ async function selectStatus(status) {
   await loadGoals()
 }
 
+function toggleCategoryMenu() {
+  categoryMenuOpen.value = !categoryMenuOpen.value
+  priorityMenuOpen.value = false
+}
+
+function togglePriorityMenu() {
+  priorityMenuOpen.value = !priorityMenuOpen.value
+  categoryMenuOpen.value = false
+}
+
+function selectCategory(category) {
+  selectedCategory.value = category
+  categoryMenuOpen.value = false
+}
+
+function selectPriority(priority) {
+  selectedPriority.value = priority
+  priorityMenuOpen.value = false
+}
+
+function closeFilterMenus() {
+  categoryMenuOpen.value = false
+  priorityMenuOpen.value = false
+}
+
 function normalizeGoalList(data) {
   if (Array.isArray(data)) {
     return data
@@ -201,10 +276,6 @@ function openCreateDialog() {
 
 async function handleCreateSuccess() {
   await loadGoals()
-}
-
-function showFilterHint() {
-  ElMessage.info('分类和优先级筛选入口已预留。')
 }
 
 function showReadonlyHint() {
@@ -276,7 +347,14 @@ function daysLeftText(value) {
   return `剩余 ${diff} 天`
 }
 
-onMounted(loadGoals)
+onMounted(() => {
+  document.addEventListener('click', closeFilterMenus)
+  loadGoals()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeFilterMenus)
+})
 </script>
 
 <style scoped>
@@ -424,7 +502,12 @@ onMounted(loadGoals)
 .goal-filter-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+}
+
+.goal-filter-actions {
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .goal-filter-card button {
@@ -455,6 +538,88 @@ onMounted(loadGoals)
 .goal-filter-actions button {
   border: 1px solid rgba(217, 192, 199, 0.86);
   background: #ffffff;
+}
+
+.goal-filter-menu {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.goal-filter-trigger {
+  display: inline-flex;
+  width: 112px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(217, 192, 199, 0.86);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #544248;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.goal-filter-trigger span {
+  color: currentColor;
+  font-size: 12px;
+}
+
+.goal-filter-trigger:hover,
+.goal-filter-menu.open .goal-filter-trigger {
+  background: #eceef0;
+  color: #9e3a68;
+}
+
+.goal-filter-trigger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(158, 58, 104, 0.12);
+  outline: none;
+}
+
+.goal-filter-dropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 50%;
+  display: grid;
+  min-width: 148px;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(217, 192, 199, 0.68);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(25, 28, 30, 0.12);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.goal-filter-dropdown button {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: #544248;
+  text-align: left;
+}
+
+.goal-filter-dropdown button:hover {
+  background: #f7f9fb;
+  color: #9e3a68;
+}
+
+.goal-filter-dropdown button.active {
+  background: #ffd9e4;
+  color: #3e0021;
+  box-shadow: none;
 }
 
 .goal-grid {
@@ -707,9 +872,18 @@ onMounted(loadGoals)
   }
 
   .goal-primary-button,
-  .goal-filter-actions button {
+  .goal-filter-actions button,
+  .goal-filter-menu,
+  .goal-filter-trigger {
     justify-content: center;
     width: 100%;
+    max-width: none;
+  }
+
+  .goal-filter-dropdown {
+    left: 0;
+    width: 100%;
+    transform: none;
   }
 
   .goal-stats,

@@ -1,48 +1,110 @@
 <template>
-  <main class="profile-page">
-    <header class="profile-header">
-      <button type="button" class="profile-back" @click="goDashboard">返回主页</button>
-      <button type="button" class="profile-logout" @click="handleLogout">退出</button>
-    </header>
+  <AppShell v-model:search-value="shellSearch" active="profile" page-class="profile-shell-page" @search="goDashboard" @create="goDashboard">
+    <main class="profile-page">
+      <section class="profile-hero">
+        <div class="profile-avatar-wrap">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
+          <span v-else>{{ avatarInitial }}</span>
+        </div>
+        <div class="profile-title">
+          <span>PERSONAL CENTER</span>
+          <h1>{{ displayName }}</h1>
+          <p>@{{ user?.username || '-' }}</p>
+        </div>
+        <div class="profile-actions">
+          <button type="button" class="profile-primary-action" @click="openEditDialog">编辑个人资料</button>
+          <button type="button" class="profile-secondary-action" @click="openPasswordDialog">修改密码</button>
+        </div>
+      </section>
 
-    <section class="profile-hero">
-      <div class="profile-avatar-wrap">
-        <img v-if="avatarUrl" :src="avatarUrl" alt="用户头像" />
-        <span v-else>{{ avatarInitial }}</span>
-      </div>
-      <div class="profile-title">
-        <h1>{{ displayName }}</h1>
-        <p>@{{ user?.username || '-' }}</p>
-      </div>
-      <div class="profile-actions">
-        <button type="button" class="profile-primary-action" @click="openEditDialog">编辑个人资料</button>
-        <button type="button" class="profile-secondary-action" @click="openPasswordDialog">修改密码</button>
-      </div>
-    </section>
+      <section class="profile-content-grid">
+        <div class="profile-main-column">
+          <section class="profile-panel profile-info-panel">
+            <div class="profile-panel-head">
+              <div>
+                <span>ACCOUNT</span>
+                <h2>个人资料</h2>
+              </div>
+              <button type="button" @click="openEditDialog">更新</button>
+            </div>
+            <div class="profile-info-grid" aria-label="用户基本信息">
+              <article class="profile-info-card">
+                <span>用户名</span>
+                <strong>{{ user?.username || '-' }}</strong>
+              </article>
+              <article class="profile-info-card">
+                <span>昵称</span>
+                <strong>{{ user?.nickname || '-' }}</strong>
+              </article>
+              <article class="profile-info-card">
+                <span>注册日期</span>
+                <strong>{{ formatDate(user?.createTime) }}</strong>
+              </article>
+              <article class="profile-info-card">
+                <span>头像状态</span>
+                <strong>{{ avatarUrl ? '已设置' : '默认头像' }}</strong>
+              </article>
+            </div>
+          </section>
 
-    <section class="profile-info-grid" aria-label="用户基本信息">
-      <article class="profile-info-card">
-        <span>用户名</span>
-        <strong>{{ user?.username || '-' }}</strong>
-      </article>
-      <article class="profile-info-card">
-        <span>昵称</span>
-        <strong>{{ user?.nickname || '-' }}</strong>
-      </article>
-      <article class="profile-info-card">
-        <span>注册日期</span>
-        <strong>{{ formatDate(user?.createTime) }}</strong>
-      </article>
-      <article class="profile-info-card">
-        <span>头像状态</span>
-        <strong>{{ avatarUrl ? '已设置' : '默认头像' }}</strong>
-      </article>
-    </section>
+          <section class="profile-panel profile-note">
+            <div class="profile-panel-head">
+              <div>
+                <span>PROFILE NOTE</span>
+                <h2>个人主页说明</h2>
+              </div>
+            </div>
+            <p>头像和昵称会用于顶部导航、个人中心、决策详情与回看记录展示。修改密码后系统会退出登录，请使用新密码重新进入。</p>
+          </section>
+        </div>
 
-    <section class="profile-note">
-      <h2>账号小记</h2>
-      <p>头像和昵称会显示在你的决策回看页面，修改密码后需要重新登录。</p>
-    </section>
+        <aside class="profile-side-column">
+          <section class="profile-panel profile-overview-panel">
+            <div class="profile-panel-head">
+              <div>
+                <span>DECISION SNAPSHOT</span>
+                <h2>使用概览</h2>
+              </div>
+            </div>
+            <div class="profile-metric-grid">
+              <article v-for="item in profileMetricCards" :key="item.label" class="profile-metric-card" :class="item.tone">
+                <span>{{ item.icon }}</span>
+                <div>
+                  <small>{{ item.label }}</small>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="profile-panel profile-security-panel">
+            <div class="profile-panel-head">
+              <div>
+                <span>SECURITY</span>
+                <h2>账号安全</h2>
+              </div>
+              <button type="button" @click="openPasswordDialog">修改密码</button>
+            </div>
+            <div class="profile-security-list">
+              <article>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <strong>密码保护</strong>
+                  <p>建议定期更新密码，修改成功后会重新登录。</p>
+                </div>
+              </article>
+              <article>
+                <span aria-hidden="true">◎</span>
+                <div>
+                  <strong>资料展示</strong>
+                  <p>你的头像和昵称只用于当前应用内的个人化展示。</p>
+                </div>
+              </article>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
 
     <el-dialog v-model="editDialogVisible" class="youth-dialog profile-edit-dialog" title="编辑个人资料" width="560px">
       <el-form ref="profileFormRef" :model="profileForm" :rules="profileRules" label-position="top">
@@ -98,7 +160,7 @@
         </div>
       </template>
     </el-dialog>
-  </main>
+  </AppShell>
 </template>
 
 <script setup>
@@ -106,6 +168,9 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../../store/auth'
+import AppShell from '../../components/AppShell.vue'
+import { getDecisionDashboard } from '../../api/decision'
+import { getGoals } from '../../api/goal'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -117,12 +182,28 @@ const passwordDialogVisible = ref(false)
 const savingProfile = ref(false)
 const uploadingAvatar = ref(false)
 const changingPassword = ref(false)
+const shellSearch = ref('')
+const dashboard = ref({ summary: { total: 0, pending: 0, reviewed: 0, satisfaction: {} } })
+const activeGoals = ref([])
 
 const user = computed(() => authStore.user || {})
 const displayName = computed(() => user.value.nickname || user.value.username || '朋友')
 const avatarUrl = computed(() => user.value.avatarUrl || '')
 const avatarInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
 const profileInitial = computed(() => (profileForm.nickname || displayName.value).slice(0, 1).toUpperCase())
+const summary = computed(() => dashboard.value.summary || { total: 0, pending: 0, reviewed: 0, satisfaction: {} })
+const satisfactionRate = computed(() => {
+  const reviewed = summary.value.reviewed || 0
+  const satisfied = summary.value.satisfaction?.['满意'] || 0
+  return reviewed === 0 ? '0%' : `${Math.round((satisfied / reviewed) * 100)}%`
+})
+const profileMetricCards = computed(() => [
+  { label: '总决策数', value: summary.value.total || 0, icon: '⌁', tone: 'pink' },
+  { label: '待回看', value: summary.value.pending || 0, icon: '◷', tone: 'yellow' },
+  { label: '已复盘', value: summary.value.reviewed || 0, icon: '✓', tone: 'blue' },
+  { label: '满意率', value: satisfactionRate.value, icon: '☆', tone: 'gray' },
+  { label: '进行中目标', value: activeGoals.value.length, icon: '◎', tone: 'mint' }
+])
 
 const profileForm = reactive({
   nickname: '',
@@ -253,7 +334,39 @@ function formatDate(value) {
   return String(value).replace('T', ' ').slice(0, 10)
 }
 
-onMounted(() => {
-  authStore.loadCurrentUser().catch(() => null)
+async function loadProfileStats() {
+  const [dashboardResult, goalsResult] = await Promise.allSettled([
+    getDecisionDashboard(),
+    getGoals({ status: 'IN_PROGRESS' })
+  ])
+  if (dashboardResult.status === 'fulfilled') {
+    dashboard.value = dashboardResult.value || dashboard.value
+  }
+  if (goalsResult.status === 'fulfilled') {
+    activeGoals.value = normalizeGoalList(goalsResult.value)
+  }
+}
+
+function normalizeGoalList(data) {
+  if (Array.isArray(data)) {
+    return data
+  }
+  if (Array.isArray(data?.records)) {
+    return data.records
+  }
+  if (Array.isArray(data?.list)) {
+    return data.list
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items
+  }
+  return []
+}
+
+onMounted(async () => {
+  await Promise.allSettled([
+    authStore.loadCurrentUser(),
+    loadProfileStats()
+  ])
 })
 </script>
