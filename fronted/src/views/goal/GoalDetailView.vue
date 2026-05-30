@@ -28,6 +28,7 @@
               <span>+</span>
               为此目标创建决策
             </button>
+            <button type="button" class="goal-secondary-button" @click="openGoalEditDialog">编辑目标</button>
           </div>
         </section>
 
@@ -164,6 +165,12 @@
         :initial-goal="goal"
         @success="handleDecisionCreated"
       />
+      <GoalCreateDialog
+        v-model:visible="goalEditDialogVisible"
+        mode="edit"
+        :goal="goal"
+        @success="handleGoalUpdated"
+      />
     </div>
   </AppShell>
 </template>
@@ -174,6 +181,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../../components/AppShell.vue'
 import { getGoalDetail } from '../../api/goal'
 import CreateDecisionDialog from './components/CreateDecisionDialog.vue'
+import GoalCreateDialog from './components/GoalCreateDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -184,6 +192,7 @@ const goal = ref(null)
 const stats = ref({})
 const decisions = ref([])
 const createDecisionDialogVisible = ref(false)
+const goalEditDialogVisible = ref(false)
 
 const statCards = computed(() => [
   { label: '关联决策总数', value: numberStat('decisionCount'), icon: '⌁', tone: 'pink' },
@@ -277,6 +286,14 @@ function showCreateDecisionHint() {
 }
 
 async function handleDecisionCreated() {
+  await loadDetail()
+}
+
+function openGoalEditDialog() {
+  goalEditDialogVisible.value = true
+}
+
+async function handleGoalUpdated() {
   await loadDetail()
 }
 
@@ -498,6 +515,30 @@ onMounted(loadDetail)
   font-weight: 850;
   box-shadow: 0 4px 20px rgba(158, 58, 104, 0.22);
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.goal-secondary-button {
+  display: inline-flex;
+  height: 48px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  border: 1px solid rgba(217, 192, 199, 0.86);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #9e3a68;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.goal-secondary-button:hover {
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(158, 58, 104, 0.14);
+  transform: translateY(-3px);
 }
 
 .goal-primary-button span {
@@ -1030,6 +1071,10 @@ onMounted(loadDetail)
 
   .goal-primary-button {
     justify-content: center;
+    width: 100%;
+  }
+
+  .goal-secondary-button {
     width: 100%;
   }
 

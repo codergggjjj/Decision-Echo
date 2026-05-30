@@ -100,7 +100,7 @@
               <span class="goal-badge category" :class="categoryClass(goal.category)">{{ goal.category || '未分类' }}</span>
             </div>
             <div class="goal-actions" @click.stop>
-              <button type="button" title="编辑" @click="showReadonlyHint">✎</button>
+              <button type="button" title="编辑" @click="openEditDialog(goal)">✎</button>
               <button type="button" title="删除" @click="showReadonlyHint">⌫</button>
             </div>
           </div>
@@ -127,7 +127,12 @@
         </article>
       </section>
     </div>
-    <GoalCreateDialog v-model:visible="createDialogVisible" @success="handleCreateSuccess" />
+    <GoalCreateDialog
+      v-model:visible="createDialogVisible"
+      :mode="editingGoal ? 'edit' : 'create'"
+      :goal="editingGoal"
+      @success="handleCreateSuccess"
+    />
   </AppShell>
 </template>
 
@@ -150,6 +155,7 @@ const selectedPriority = ref('')
 const categoryMenuOpen = ref(false)
 const priorityMenuOpen = ref(false)
 const createDialogVisible = ref(false)
+const editingGoal = ref(null)
 
 const statusFilters = [
   { label: '全部', value: '' },
@@ -271,11 +277,18 @@ function openGoal(goal) {
 }
 
 function openCreateDialog() {
+  editingGoal.value = null
   createDialogVisible.value = true
 }
 
 async function handleCreateSuccess() {
+  editingGoal.value = null
   await loadGoals()
+}
+
+function openEditDialog(goal) {
+  editingGoal.value = goal
+  createDialogVisible.value = true
 }
 
 function showReadonlyHint() {

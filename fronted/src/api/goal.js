@@ -13,6 +13,10 @@ export function createGoal(data) {
   return request.post(API_PATHS.goals, data)
 }
 
+export function updateGoal(id, data) {
+  return request.put(`${API_PATHS.goals}/${id}`, data)
+}
+
 export function recommendGoals(tags) {
   return request.post(`${API_PATHS.goals}/recommend`, { tags })
 }

@@ -12,6 +12,8 @@ import java.util.List;
 public interface DecisionService {
     Decision create(Long userId, DecisionCreateRequest request);
 
+    DecisionDetail update(Long userId, Long decisionId, DecisionCreateRequest request);
+
     List<Decision> recent(Long userId, int limit);
 
     List<Decision> search(Long userId, String keyword, String tag, String status, int limit);

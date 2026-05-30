@@ -117,7 +117,9 @@ public class GoalServiceImpl implements GoalService {
         applyRequest(goal, request);
         goal.setUpdatedAt(LocalDateTime.now());
         goalMapper.updateById(goal);
-        bindTags(userId, goalId, request.tags());
+        if (request.tags() != null) {
+            bindTags(userId, goalId, request.tags());
+        }
         return detail(userId, goalId);
     }
 

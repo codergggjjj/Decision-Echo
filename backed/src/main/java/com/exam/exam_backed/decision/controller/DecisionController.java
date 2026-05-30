@@ -62,6 +62,14 @@ public class DecisionController {
         return Result.success(decisionService.create(currentUserId(), body));
     }
 
+    @PutMapping("/{id}")
+    public Result<DecisionDetail> update(
+            @PathVariable Long id,
+            @Valid @RequestBody DecisionCreateRequest body
+    ) {
+        return Result.success(decisionService.update(currentUserId(), id, body));
+    }
+
     @PutMapping("/{id}/review")
     public Result<Decision> review(
             @PathVariable Long id,

@@ -21,6 +21,10 @@ export function createDecision(data) {
   return request.post(API_PATHS.decisions, data)
 }
 
+export function updateDecision(id, data) {
+  return request.put(`${API_PATHS.decisions}/${id}`, data)
+}
+
 export function reviewDecision(id, data) {
   return request.put(`${API_PATHS.decisions}/${id}/review`, data)
 }

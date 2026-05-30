@@ -12,8 +12,8 @@
       <div class="goal-create-content">
         <header class="goal-create-header">
           <div>
-            <h2>新建长期目标</h2>
-            <p>把长期方向写清楚，让后续每一次决策都有参照。</p>
+            <h2>{{ isEditMode ? '编辑长期目标' : '新建长期目标' }}</h2>
+            <p>{{ isEditMode ? '调整目标信息，保留已有的关联决策与回看记录。' : '把长期方向写清楚，让后续每一次决策都有参照。' }}</p>
           </div>
           <span class="goal-create-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">
@@ -94,7 +94,7 @@
           <footer class="goal-create-footer">
             <button type="button" class="goal-cancel-button" :disabled="submitting" @click="close">取消</button>
             <button type="submit" class="goal-submit-button" :disabled="submitting">
-              {{ submitting ? '保存中...' : '保存目标' }}
+              {{ submitting ? '保存中...' : isEditMode ? '保存修改' : '保存目标' }}
             </button>
           </footer>
         </form>
@@ -104,11 +104,21 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { createGoal } from '../../../api/goal'
+import { createGoal, updateGoal } from '../../../api/goal'
 
 const visible = defineModel('visible', { type: Boolean, default: false })
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'create'
+  },
+  goal: {
+    type: Object,
+    default: null
+  }
+})
 const emit = defineEmits(['success'])
 
 const statusOptions = [
@@ -131,16 +141,31 @@ const initialForm = () => ({
 const form = reactive(initialForm())
 const tagText = ref('')
 const submitting = ref(false)
+const isEditMode = computed(() => props.mode === 'edit')
 
 watch(visible, (value) => {
   if (value) {
-    resetForm()
+    resetForm(props.goal)
   }
 })
 
-function resetForm() {
-  Object.assign(form, initialForm())
-  tagText.value = ''
+function resetForm(goal = null) {
+  if (isEditMode.value && goal) {
+    Object.assign(form, {
+      title: goal.title || '',
+      description: goal.description || '',
+      category: goal.category || '',
+      priority: goal.priority || 'MEDIUM',
+      status: goal.status || 'IN_PROGRESS',
+      targetDate: formatDateInput(goal.targetDate),
+      measurement: goal.measurement || '',
+      progress: Number(goal.progress) || 0
+    })
+    tagText.value = normalizeTags(goal.tags)
+  } else {
+    Object.assign(form, initialForm())
+    tagText.value = ''
+  }
   submitting.value = false
 }
 
@@ -181,15 +206,35 @@ async function submit() {
       targetDate: form.targetDate || null,
       measurement: form.measurement || null,
       progress: Number(form.progress) || 0,
-      tags: parseTags(tagText.value)
+      tags: isEditMode.value && !tagText.value ? null : parseTags(tagText.value)
     }
-    const goal = await createGoal(payload)
-    ElMessage.success('目标创建成功')
+    const goal = isEditMode.value && props.goal?.id
+      ? await updateGoal(props.goal.id, payload)
+      : await createGoal(payload)
+    ElMessage.success(isEditMode.value ? '目标已更新' : '目标创建成功')
     visible.value = false
     emit('success', goal)
   } finally {
     submitting.value = false
   }
+}
+
+function formatDateInput(value) {
+  if (!value) {
+    return ''
+  }
+  if (Array.isArray(value)) {
+    const [year, month, day] = value
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+  return String(value).replace('T', ' ').slice(0, 10)
+}
+
+function normalizeTags(value) {
+  if (Array.isArray(value)) {
+    return value.join(' ')
+  }
+  return value || ''
 }
 </script>
 

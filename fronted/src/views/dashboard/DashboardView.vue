@@ -112,6 +112,13 @@
                   <div class="memory-foot-actions">
                     <span class="decision-card-date">{{ formatDate(decision.reviewTime).slice(0, 10) }}</span>
                     <button
+                      type="button"
+                      class="inline-detail"
+                      @click.stop="openEditDecision(decision)"
+                    >
+                      编辑
+                    </button>
+                    <button
                       v-if="decision.status !== 'reviewed'"
                       type="button"
                       class="featured-review"
@@ -207,14 +214,14 @@
       <strong>+</strong>
     </button>
 
-    <el-dialog v-model="createDialogVisible" align-center class="youth-dialog create-decision-dialog" draggable title="记录新决定" width="760px">
+    <el-dialog v-model="createDialogVisible" align-center class="youth-dialog create-decision-dialog" draggable :title="isEditMode ? '编辑决定' : '记录新决定'" width="760px">
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" class="create-decision-form" label-position="top">
         <section class="create-form-section section-basic">
           <div class="create-section-heading">
             <span>01</span>
             <div>
               <h3>基础信息</h3>
-              <p>先把这次选择的基本语境留下来。</p>
+            <p>{{ isEditMode ? '调整这条决策的基本信息，不影响已有回测结果。' : '先把这次选择的基本语境留下来。' }}</p>
             </div>
           </div>
           <el-form-item label="决策标题" prop="title">
@@ -348,7 +355,7 @@
         <section class="ai-advice-card create-ai-advice-card">
           <div>
             <span>AI 决策建议</span>
-            <p>填完决策信息后，可以先生成一份建议，再决定是否保存。</p>
+          <p>{{ isEditMode ? '可以基于修改后的内容重新生成建议，再保存这次调整。' : '填完决策信息后，可以先生成一份建议，再决定是否保存。' }}</p>
           </div>
           <el-button
             v-if="!createAdviceResult"
@@ -397,7 +404,7 @@
       <template #footer>
         <div class="create-dialog-footer">
           <el-button @click="createDialogVisible = false">取消</el-button>
-          <el-button class="primary-action dialog-primary" type="primary" :loading="creating" @click="submitCreate">保存决策</el-button>
+          <el-button class="primary-action dialog-primary" type="primary" :loading="creating" @click="submitCreate">{{ isEditMode ? '保存修改' : '保存决策' }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -411,6 +418,7 @@
             <small>{{ formatDate(decisionDetail.createTime) }}</small>
           </div>
           <h3>{{ decisionDetail.title }}</h3>
+          <button type="button" class="detail-edit-button" @click="openEditDecision(decisionDetail)">编辑决策</button>
         </section>
 
         <section class="detail-section">
@@ -599,7 +607,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppShell from '../../components/AppShell.vue'
 import { useAuthStore } from '../../store/auth'
-import { createDecision, deleteDecision, generateDecisionAdvice, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions } from '../../api/decision'
+import { createDecision, deleteDecision, generateDecisionAdvice, getDecisionDashboard, getDecisionDetail, reviewDecision, searchDecisions, updateDecision } from '../../api/decision'
 import { getGoals, recommendGoals } from '../../api/goal'
 
 const router = useRouter()
@@ -618,6 +626,7 @@ const deletingDecisionId = ref(null)
 const createDialogVisible = ref(false)
 const detailDialogVisible = ref(false)
 const reviewDialogVisible = ref(false)
+const editingDecisionId = ref(null)
 const activeDecision = ref(null)
 const decisionDetail = ref(null)
 const createAdviceResult = ref(null)
@@ -679,6 +688,7 @@ const createRules = {
   reviewTime: [{ required: true, message: '回看时间不能为空', trigger: 'change' }]
 }
 
+const isEditMode = computed(() => Boolean(editingDecisionId.value))
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '朋友')
 const avatarUrl = computed(() => authStore.user?.avatarUrl || '')
 const avatarInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
@@ -835,11 +845,29 @@ function goAnalysis() {
 }
 
 function openCreateDialog() {
+  editingDecisionId.value = null
+  resetCreateForm()
   createAdviceResult.value = null
   createAdviceError.value = ''
   createDialogVisible.value = true
   loadGoalOptions()
   loadRecommendedGoals()
+}
+
+async function openEditDecision(decision) {
+  createAdviceResult.value = null
+  createAdviceError.value = ''
+  createDialogVisible.value = true
+  try {
+    const detail = decision?.options && Array.isArray(decision.options) ? decision : await getDecisionDetail(decision.id)
+    fillDecisionForm(detail)
+    editingDecisionId.value = detail.id
+    loadGoalOptions()
+    loadRecommendedGoals()
+  } catch (error) {
+    createDialogVisible.value = false
+    ElMessage.error(error.message || '决策详情加载失败')
+  }
 }
 
 async function openDetail(decision) {
@@ -898,8 +926,17 @@ async function submitCreate() {
   }
   creating.value = true
   try {
-    await createDecision({ ...createForm, context: createForm.context || '', options: buildOptionsPayload() })
-    ElMessage.success('决策已保存')
+    const payload = { ...createForm, context: createForm.context || '', options: buildOptionsPayload() }
+    if (isEditMode.value) {
+      const updated = await updateDecision(editingDecisionId.value, payload)
+      ElMessage.success('决策已更新')
+      if (decisionDetail.value?.id === editingDecisionId.value) {
+        decisionDetail.value = updated
+      }
+    } else {
+      await createDecision(payload)
+      ElMessage.success('决策已保存')
+    }
     resetCreateForm()
     createAdviceResult.value = null
     createAdviceError.value = ''
@@ -988,6 +1025,7 @@ async function handleGenerateReviewAdvice() {
 }
 
 function resetCreateForm() {
+  editingDecisionId.value = null
   Object.assign(createForm, {
       title: '',
       context: '',
@@ -1000,6 +1038,22 @@ function resetCreateForm() {
   })
   resetOptionTree()
   recommendedGoals.value = []
+}
+
+function fillDecisionForm(decision) {
+  const parsed = normalizeEditableOptions(decision)
+  Object.assign(createForm, {
+    title: decision.title || '',
+    context: decision.context || '',
+    reason: decision.reason || '',
+    tags: decision.tags || '',
+    goalIds: normalizeDecisionGoalIds(decision),
+    mood: decision.mood || '',
+    urgency: decision.urgency || 2,
+    reviewTime: normalizeReviewTimeValue(decision.reviewTime) || ''
+  })
+  optionTree.value = parsed.items.length >= 2 ? parsed.items : createDefaultOptionTree()
+  selectedOptionId.value = parsed.selectedId || optionTree.value[0]?.id || ''
 }
 
 async function loadGoalOptions() {
@@ -1204,6 +1258,35 @@ function optionSummary(rawOptions) {
     .filter(Boolean)
     .map((title, index) => ({ id: `legacy_${index}`, title, strategy: '', children: [] }))
   return { selected: items[0]?.title || '', selectedStrategy: '', items }
+}
+
+function normalizeEditableOptions(decision) {
+  if (Array.isArray(decision.options)) {
+    const items = decision.options.map((item, index) => toEditableOption(item, index))
+    const selected = items.find((item) => item.title === decision.finalChoice)
+    return { selectedId: selected?.id || items[0]?.id || '', items }
+  }
+  const summary = optionSummary(decision.options)
+  return {
+    selectedId: summary.items.find((item) => item.title === summary.selected)?.id || summary.items[0]?.id || '',
+    items: summary.items.map((item, index) => toEditableOption(item, index))
+  }
+}
+
+function toEditableOption(item, index = 0) {
+  return {
+    id: item.id || `edit_${Date.now()}_${index}`,
+    title: item.title || '',
+    strategy: item.strategy || '平衡',
+    children: Array.isArray(item.children)
+      ? item.children.map((child, childIndex) => ({
+        id: child.id || `edit_child_${Date.now()}_${index}_${childIndex}`,
+        title: child.title || '',
+        strategy: child.strategy || '平衡',
+        children: []
+      }))
+      : []
+  }
 }
 
 function adviceItems(items) {

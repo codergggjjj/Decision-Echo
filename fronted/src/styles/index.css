@@ -4622,6 +4622,26 @@ input {
   letter-spacing: 0;
 }
 
+.detail-edit-button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(217, 192, 199, 0.86);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #9e3a68;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.detail-edit-button:hover {
+  box-shadow: 0 8px 18px rgba(158, 58, 104, 0.14);
+  transform: translateY(-2px);
+}
+
 .detail-section {
   display: grid;
   gap: 10px;

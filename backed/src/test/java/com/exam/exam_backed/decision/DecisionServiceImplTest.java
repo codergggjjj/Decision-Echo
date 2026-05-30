@@ -336,6 +336,57 @@ class DecisionServiceImplTest {
     }
 
     @Test
+    void updateDecisionChangesEditableFieldsAndKeepsReviewStatus() {
+        FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(3L, 7L, "提升编程能力", "", "学习", "HIGH",
+                "IN_PROGRESS", null, "", 20, null, null));
+        FakeDecisionGoalMapper decisionGoalMapper = new FakeDecisionGoalMapper();
+        FakeTagService tagService = new FakeTagService();
+        DecisionService service = new DecisionServiceImpl(decisionMapper, decisionGoalMapper, goalMapper, tagService);
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 7L, null, "旧标题", "旧背景", "旧方案,另一个", "旧原因", "旧标签", "平静", 1,
+                now, "满意", "反馈", "reviewed", 0, now.minusDays(1), now.minusDays(1)));
+
+        var detail = service.update(7L, 1L, new DecisionCreateRequest(
+                "新标题",
+                "新背景",
+                "{\"version\":1,\"selectedId\":\"opt_2\",\"items\":[{\"id\":\"opt_1\",\"title\":\"A\",\"children\":[]},{\"id\":\"opt_2\",\"title\":\"B\",\"children\":[]}]}",
+                "新原因",
+                "学习,课程",
+                "焦虑",
+                3,
+                LocalDateTime.of(2026, 7, 1, 9, 0),
+                null,
+                List.of(3L)
+        ));
+
+        assertEquals("新标题", detail.title());
+        assertEquals("新背景", detail.context());
+        assertEquals("学习,课程", detail.tags());
+        assertEquals("焦虑", detail.mood());
+        assertEquals(3, detail.urgency());
+        assertEquals("reviewed", detail.status());
+        assertEquals("满意", detail.satisfaction());
+        assertEquals(List.of(3L), detail.goalIds());
+        assertEquals(List.of(3L), decisionGoalMapper.links.stream().map(DecisionGoal::goalId).toList());
+        assertEquals(1L, tagService.boundDecisionId);
+    }
+
+    @Test
+    void updateDecisionRejectsDecisionFromAnotherUser() {
+        LocalDateTime now = LocalDateTime.now();
+        decisionMapper.seed(new Decision(1L, 8L, "A", "ctx", "a,b", "reason", "学习", "平静", 2,
+                now, null, null, "pending", now, now));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> decisionService.update(
+                7L,
+                1L,
+                new DecisionCreateRequest("B", "ctx", "a,b", "reason", "学习", "平静", 2, now)
+        ));
+
+        assertEquals("决策记录不存在", error.getMessage());
+    }
+
+    @Test
     void createDecisionBindsMultipleGoalsAndKeepsFirstGoalIdForCompatibility() {
         FakeGoalMapper goalMapper = new FakeGoalMapper(new Goal(3L, 7L, "提升编程能力", "", "学习", "HIGH",
                 "IN_PROGRESS", null, "", 20, null, null));
@@ -556,6 +607,18 @@ class DecisionServiceImplTest {
             decision.setId(idGenerator.getAndIncrement());
             decisions.add(decision);
             return 1;
+        }
+
+        @Override
+        public int updateById(Decision entity) {
+            for (int i = 0; i < decisions.size(); i++) {
+                Decision decision = decisions.get(i);
+                if (decision.id().equals(entity.id())) {
+                    decisions.set(i, entity);
+                    return 1;
+                }
+            }
+            return 0;
         }
 
         @Override

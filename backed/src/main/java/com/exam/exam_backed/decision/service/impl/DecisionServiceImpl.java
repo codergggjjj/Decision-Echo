@@ -87,6 +87,27 @@ public class DecisionServiceImpl implements DecisionService {
     }
 
     @Override
+    @Transactional
+    public DecisionDetail update(Long userId, Long decisionId, DecisionCreateRequest request) {
+        Decision decision = findExistingDecision(userId, decisionId);
+        List<Long> goalIds = normalizeGoalIds(userId, request.goalIds(), request.goalId());
+        decision.setGoalId(goalIds.isEmpty() ? null : goalIds.get(0));
+        decision.setTitle(request.title());
+        decision.setContext(request.context() == null ? "" : request.context());
+        decision.setOptions(request.options());
+        decision.setReason(request.reason());
+        decision.setTags(request.tags());
+        decision.setMood(request.mood());
+        decision.setUrgency(request.urgency());
+        decision.setReviewTime(request.reviewTime());
+        decision.setUpdateTime(LocalDateTime.now());
+        decisionMapper.updateById(decision);
+        bindDecisionGoals(decisionId, goalIds);
+        bindDecisionTags(userId, decisionId, request.tags());
+        return detail(userId, decisionId);
+    }
+
+    @Override
     public List<Decision> recent(Long userId, int limit) {
         int normalizedLimit = Math.min(Math.max(limit, 1), 20);
         return decisionMapper.findRecentByUserId(userId, normalizedLimit);
@@ -139,6 +160,10 @@ public class DecisionServiceImpl implements DecisionService {
                 goals,
                 decision.title(),
                 decision.context(),
+                decision.tags(),
+                decision.mood(),
+                decision.urgency(),
+                decision.reviewTime(),
                 parsedOptions.options(),
                 parsedOptions.finalChoice(),
                 decision.reason(),
